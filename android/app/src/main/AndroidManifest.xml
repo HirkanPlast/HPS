@@ -5,8 +5,7 @@
 
     <application
         android:label="فروشگاه هیرکان پلاست"
-        android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:name="${applicationName}">
         <activity
             android:name=".MainActivity"
             android:exported="true"
