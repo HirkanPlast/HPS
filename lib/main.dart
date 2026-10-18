@@ -38,7 +38,7 @@ void main() async {
     'dailyBackup',
     frequency: const Duration(hours: 24),
     constraints: Constraints(networkType: NetworkType.connected),
-    existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
+    existingWorkPolicy: ExistingWorkPolicy.keep,
   );
 
   runApp(const HpsApp());
