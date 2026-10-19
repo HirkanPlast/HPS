@@ -6,6 +6,7 @@ import '../utils/constants.dart';
 import '../services/telegram_service.dart';
 import '../services/backup_service.dart';
 import '../database/database_helper.dart';
+import '../models/product.dart';
 import '../app.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -105,6 +106,158 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('خطا در تهیه نسخه پشتیبان: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+
+  List<List<String>> _parseCsv(String input) {
+    final rows = <List<String>>[];
+    var row = <String>[];
+    var field = StringBuffer();
+    var quoted = false;
+    for (var i = 0; i < input.length; i++) {
+      final ch = input[i];
+      if (ch == '"') {
+        if (quoted && i + 1 < input.length && input[i + 1] == '"') {
+          field.write('"');
+          i++;
+        } else {
+          quoted = !quoted;
+        }
+      } else if (ch == ',' && !quoted) {
+        row.add(field.toString());
+        field = StringBuffer();
+      } else if ((ch == '\n' || ch == '\r') && !quoted) {
+        if (ch == '\r' && i + 1 < input.length && input[i + 1] == '\n') i++;
+        row.add(field.toString());
+        if (row.any((value) => value.trim().isNotEmpty)) rows.add(row);
+        row = <String>[];
+        field = StringBuffer();
+      } else {
+        field.write(ch);
+      }
+    }
+    row.add(field.toString());
+    if (row.any((value) => value.trim().isNotEmpty)) rows.add(row);
+    return rows;
+  }
+
+  double _csvNumber(Map<String, String> row, String key, {double fallback = 0}) {
+    final value = (row[key] ?? '').trim().replaceAll(',', '');
+    return double.tryParse(value) ?? fallback;
+  }
+
+  Future<void> _importProductCsv() async {
+    try {
+      final picked = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['csv', 'txt'],
+        withData: true,
+      );
+      if (picked == null || picked.files.isEmpty) return;
+      final bytes = picked.files.first.bytes;
+      if (bytes == null) throw Exception('فایل قابل خواندن نیست');
+      var csv = utf8.decode(bytes, allowMalformed: true);
+      if (csv.startsWith('\uFEFF')) csv = csv.substring(1);
+      final rows = _parseCsv(csv);
+      if (rows.length < 2) throw Exception('فایل خالی است یا سرستون ندارد');
+
+      final headers = rows.first.map((v) => v.trim().toLowerCase()).toList();
+      final required = ['type', 'code', 'name', 'category', 'unit'];
+      if (!required.every(headers.contains)) {
+        throw Exception('سرستون‌های فایل با قالب مورد انتظار سازگار نیست');
+      }
+      final records = <Map<String, String>>[];
+      for (final values in rows.skip(1)) {
+        final map = <String, String>{};
+        for (var i = 0; i < headers.length; i++) {
+          map[headers[i]] = i < values.length ? values[i].trim() : '';
+        }
+        if (map['type']?.toLowerCase() == 'product' &&
+            (map['code'] ?? '').isNotEmpty &&
+            (map['name'] ?? '').isNotEmpty) {
+          records.add(map);
+        }
+      }
+      if (records.isEmpty) throw Exception('هیچ ردیف کالا در فایل پیدا نشد');
+
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('وارد کردن کالاها'),
+          content: Text(
+            '\${records.length} ردیف کالا شناسایی شد. کالاهای هم‌کد به‌روزرسانی می‌شوند و کالاهای جدید اضافه می‌شوند؛ اطلاعات فعلی حذف نمی‌شود.\n\nتراکنش‌های فایل فعلاً وارد نمی‌شوند، چون کد کالای مرتبط در ردیف‌ها وجود ندارد.\nادامه می‌دهید؟',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('انصراف'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('وارد کردن'),
+            ),
+          ],
+        ),
+      );
+      if (confirm != true) return;
+
+      setState(() => _busy = true);
+      var added = 0;
+      var updated = 0;
+      var failed = 0;
+      for (final row in records) {
+        try {
+          final code = row['code']!.trim();
+          final existing = await DatabaseHelper.instance.getProductByCode(code);
+          final product = Product(
+            id: existing?.id,
+            code: code,
+            name: row['name']!.trim(),
+            category: (row['category'] ?? '').trim(),
+            unit: (row['unit'] ?? '').trim().isEmpty
+                ? 'تعدادی'
+                : row['unit']!.trim(),
+            initialStock: _csvNumber(row, 'initial_stock'),
+            minStock: _csvNumber(row, 'min_stock'),
+            buyPrice: _csvNumber(row, 'purchase_price',
+                fallback: _csvNumber(row, 'buy_price')),
+            sellPrice: _csvNumber(row, 'sale_price',
+                fallback: _csvNumber(row, 'sell_price')),
+            isActive: true,
+            notes: (row['notes'] ?? '').trim().isEmpty
+                ? existing?.notes
+                : row['notes']!.trim(),
+          );
+          if (existing == null) {
+            await DatabaseHelper.instance.insertProduct(product);
+            added++;
+          } else {
+            await DatabaseHelper.instance.updateProduct(product);
+            updated++;
+          }
+        } catch (_) {
+          failed++;
+        }
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'واردات تمام شد: $added کالای جدید، $updated کالای به‌روزشده، $failed خطا. تراکنش‌ها وارد نشدند.',
+            ),
+            duration: const Duration(seconds: 8),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('خطا در وارد کردن فایل: $e')),
         );
       }
     } finally {
@@ -273,6 +426,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 // Data tools (available to both roles, but restore more careful)
                 Text('داده و بازیابی', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 8),
+                ListTile(
+                  leading: const Icon(Icons.file_upload_outlined),
+                  title: const Text('وارد کردن کالاها از CSV'),
+                  subtitle: const Text('افزودن کالاهای جدید و به‌روزرسانی کدهای موجود'),
+                  onTap: _importProductCsv,
+                ),
                 ListTile(
                   leading: const Icon(Icons.save_alt),
                   title: const Text('تهیه نسخه پشتیبان در گوشی'),
