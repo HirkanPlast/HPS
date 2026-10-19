@@ -560,11 +560,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
         final quantity = _csvNumber(row, 'quantity', fallback: -1);
         final originalUnitPrice = _csvNumber(row, 'unitpricerial', fallback: -1);
         final total = _csvNumber(row, 'totalrial', fallback: -1);
-        if (code.isEmpty || !productCodes.contains(code)) {
-          throw Exception('کد کالا در فهرست محصولات برنامه پیدا نشد: $code');
-        }
         if (quantity <= 0 || total < 0 || originalUnitPrice < 0) {
           throw Exception('مقدار یا مبلغ تراکنش نامعتبر است: ${values.join(',')}');
+        }
+        // Invoice-level purchase adjustment: retain it without inventing a stock item.
+        if (kind == 'خرید' && code == 'ADJ-1489') {
+          expenses.add({
+            'date': date,
+            'category': 'تعدیل فاکتور خرید',
+            'title': (row['description'] ?? '').trim().isEmpty
+                ? 'تعدیل فاکتور ${row['invoiceno'] ?? ''}'
+                : (row['description'] ?? '').trim(),
+            'amount': total,
+            'notes': 'شماره فاکتور: ${(row['invoiceno'] ?? '').trim()}',
+            'created_at': now,
+          });
+          continue;
+        }
+        if (code.isEmpty || !productCodes.contains(code)) {
+          throw Exception('کد کالا در فهرست محصولات برنامه پیدا نشد: $code');
         }
         final notes = <String>[];
         final description = (row['description'] ?? '').trim();
