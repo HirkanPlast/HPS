@@ -3,7 +3,6 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'utils/constants.dart';
-import 'screens/role_select_screen.dart';
 import 'screens/home_screen.dart';
 
 class HpsApp extends StatelessWidget {
@@ -72,11 +71,8 @@ class _SplashWrapperState extends State<SplashWrapper> {
 
   Future<void> _loadRole() async {
     final prefs = await SharedPreferences.getInstance();
-    final role = prefs.getString(AppConstants.keyRole);
-    setState(() {
-      _role = role;
-      _loading = false;
-    });
+    await prefs.setString(AppConstants.keyRole, 'manager');
+    setState(() { _role = 'manager'; _loading = false; });
   }
 
   @override
@@ -87,16 +83,6 @@ class _SplashWrapperState extends State<SplashWrapper> {
       );
     }
 
-    if (_role == null) {
-      return RoleSelectScreen(
-        onSelected: (role) async {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString(AppConstants.keyRole, role);
-          setState(() => _role = role);
-        },
-      );
-    }
-
-    return HomeScreen(role: _role!);
+    return HomeScreen(role: 'manager');
   }
 }
