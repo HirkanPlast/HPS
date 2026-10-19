@@ -2,11 +2,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import '../utils/home_navigation.dart';
 import 'package:flutter/services.dart';
-import '../services/backup_service.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:share_plus/share_plus.dart';
-import 'dart:typed_data';
 import '../utils/constants.dart';
+import '../utils/theme_controller.dart';
 import '../database/database_helper.dart';
 import '../models/product.dart';
 
@@ -21,35 +19,6 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _busy = false;
-
-  /// Share a JSON backup through Android's native share sheet.
-  Future<void> _shareBackup() async {
-    setState(() => _busy = true);
-    try {
-      final jsonStr = jsonEncode(await DatabaseHelper.instance.exportAllData());
-      final stamp = DateTime.now().toIso8601String().replaceAll(':', '-');
-      await Share.shareXFiles(
-        [
-          XFile.fromData(
-            Uint8List.fromList(utf8.encode(jsonStr)),
-            mimeType: 'application/json',
-            name: 'hpleila_backup_$stamp.json',
-          ),
-        ],
-        text: 'نسخه پشتیبان اطلاعات HPLeila',
-        subject: 'نسخه پشتیبان HPLeila',
-      );
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('خطا در آماده‌سازی نسخه پشتیبان: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
 
   List<List<String>> _parseCsv(String input) {
     final rows = <List<String>>[];
@@ -255,68 +224,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  /// Restore full backup from a JSON file picked by user
-  Future<void> _restoreFromFile() async {
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: const Text('بازیابی از فایل JSON'),
-        content: const Text(
-          'تمام داده‌های فعلی (کالاها، تراکنش‌ها و هزینه‌ها) پاک می‌شوند و با محتوای فایل جایگزین می‌شوند.\n\nآیا ادامه می‌دهید؟',
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('انصراف')),
-          TextButton(
-            onPressed: () => Navigator.pop(c, true),
-            child: const Text('بازیابی'),
-          ),
-        ],
-      ),
-    );
-    if (confirm != true) return;
-
-    try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['json'],
-        withData: true,
-      );
-      if (result == null || result.files.isEmpty) return;
-
-      final file = result.files.first;
-      if (file.bytes == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('نتوانستم فایل را بخوانم')),
-          );
-        }
-        return;
-      }
-
-      setState(() => _busy = true);
-      final jsonStr = utf8.decode(file.bytes!);
-      final ok = await BackupService.restoreFromJsonString(jsonStr, clearFirst: true);
-      setState(() => _busy = false);
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(ok
-                ? 'بازیابی با موفقیت انجام شد'
-                : 'خطا در بازیابی. فرمت فایل را بررسی کنید'),
-          ),
-        );
-      }
-    } catch (e) {
-      setState(() => _busy = false);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('خطا: $e')),
-        );
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final isManager = widget.role == 'manager';
@@ -328,34 +235,26 @@ class _SettingsScreenState extends State<SettingsScreen> {
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                const SizedBox(height: 8),
-                Text('نسخه پشتیبان', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 8),
-                const Text(
-                  'فایل پشتیبان را با منوی اشتراک‌گذاری اندروید از طریق تلگرام، واتساپ، ایمیل یا برنامه‌های دیگر ارسال کنید.',
+                Card(
+                  child: SwitchListTile(
+                    secondary: Icon(AppThemeController.mode.value == ThemeMode.dark ? Icons.dark_mode : Icons.light_mode),
+                    title: const Text('حالت روز / شب'),
+                    subtitle: const Text('ظاهر روشن یا تیرهٔ برنامه را انتخاب کنید'),
+                    value: AppThemeController.mode.value == ThemeMode.dark,
+                    onChanged: (enabled) async {
+                      await AppThemeController.setMode(enabled ? ThemeMode.dark : ThemeMode.light);
+                      if (mounted) setState(() {});
+                    },
+                  ),
                 ),
-                const SizedBox(height: 8),
-                ElevatedButton.icon(
-                  onPressed: _busy ? null : _shareBackup,
-                  icon: const Icon(Icons.share),
-                  label: const Text('اشتراک‌گذاری نسخه پشتیبان'),
-                ),
-                const SizedBox(height: 24),
-
-                // Data tools (available to both roles, but restore more careful)
-                Text('داده و بازیابی', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 16),
+                Text('ورود اطلاعات', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 8),
                 ListTile(
                   leading: const Icon(Icons.file_upload_outlined),
                   title: const Text('جایگزینی کامل اطلاعات از فایل CSV/TXT'),
                   subtitle: const Text('پاک‌کردن اطلاعات فعلی و واردکردن کالاها و تراکنش‌های فایل'),
                   onTap: _importLedgerCsv,
-                ),
-                ListTile(
-                  leading: const Icon(Icons.restore),
-                  title: const Text('بازیابی از فایل پشتیبان'),
-                  subtitle: const Text('جایگزینی داده‌های فعلی با فایل JSON'),
-                  onTap: _restoreFromFile,
                 ),
                 if (isManager) ...[
                   const SizedBox(height: 16),
