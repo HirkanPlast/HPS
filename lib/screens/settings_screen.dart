@@ -211,7 +211,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         } else if (kind == 'transaction') {
           // Compact layout: transaction,source_id,,,Shamsi_date,type,quantity,unit_price,notes,product_code
           if (values.length < 10) {
-            throw Exception('ردیف تراکنش ناقص است: \${values.join(',')}');
+            throw Exception('ردیف تراکنش ناقص است: ${values.join(',')}');
           }
           final sourceId = values[1].trim();
           final date = values[4].trim();
@@ -222,7 +222,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           final productCode = values[9].trim();
           if (sourceId.isEmpty || date.isEmpty || type.isEmpty ||
               quantityText.isEmpty || priceText.isEmpty || productCode.isEmpty) {
-            throw Exception('اطلاعات ضروری تراکنش ناقص است: \${values.join(',')}');
+            throw Exception('اطلاعات ضروری تراکنش ناقص است: ${values.join(',')}');
           }
           if (!RegExp(r'^\d{4}/\d{2}/\d{2}$').hasMatch(date)) {
             throw Exception('تاریخ شمسی نامعتبر است: $date');
@@ -233,7 +233,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           final quantity = double.tryParse(quantityText.replaceAll(',', ''));
           final price = double.tryParse(priceText.replaceAll(',', ''));
           if (quantity == null || price == null || quantity < 0 || price < 0) {
-            throw Exception('مقدار یا قیمت تراکنش نامعتبر است: \${values.join(',')}');
+            throw Exception('مقدار یا قیمت تراکنش نامعتبر است: ${values.join(',')}');
           }
           if (!transactionIds.add(sourceId)) {
             throw Exception('شناسه تراکنش تکراری در فایل: $sourceId');
@@ -258,7 +258,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           .where((code) => !productCodes.contains(code))
           .toSet();
       if (missingCodes.isNotEmpty) {
-        throw Exception('کد کالا برای این تراکنش‌ها در فایل وجود ندارد: \${missingCodes.join(', ')}');
+        throw Exception('کد کالا برای این تراکنش‌ها در فایل وجود ندارد: ${missingCodes.join(', ')}');
       }
 
       final confirm = await showDialog<bool>(
@@ -266,9 +266,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         builder: (dialogContext) => AlertDialog(
           title: const Text('جایگزینی کامل اطلاعات'),
           content: Text(
-            '\${products.length} کالا و \${transactions.length} تراکنش شناسایی شد.\\n\\n'
+            '${products.length} کالا و ${transactions.length} تراکنش شناسایی شد.\n\n'
             'با تأیید، تمام کالاها، تراکنش‌ها و هزینه‌های فعلی برنامه پاک می‌شوند و فقط اطلاعات همین فایل باقی می‌ماند. '
-            'این فایل ردیف هزینه ندارد؛ بنابراین هزینه‌های قبلی نیز حذف می‌شوند.\\n\\n'
+            'این فایل ردیف هزینه ندارد؛ بنابراین هزینه‌های قبلی نیز حذف می‌شوند.\n\n'
             'تاریخ‌های شمسی و مقادیر اعشاری حفظ می‌شوند. ادامه می‌دهید؟',
           ),
           actions: [
@@ -296,7 +296,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'جایگزینی موفق بود: \${products.length} کالا و \${transactions.length} تراکنش وارد شد؛ داده‌های قبلی و هزینه‌ها پاک شدند.',
+              'جایگزینی موفق بود: ${products.length} کالا و ${transactions.length} تراکنش وارد شد؛ داده‌های قبلی و هزینه‌ها پاک شدند.',
             ),
             duration: const Duration(seconds: 8),
           ),
