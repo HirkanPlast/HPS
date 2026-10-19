@@ -1,7 +1,7 @@
 name: hps
 description: فروشگاه هیرکان پلاست - سیستم مدیریت انبار و فروش
 publish_to: 'none'
-version: 1.0.3+4
+version: 1.0.4+5
 
 environment:
   sdk: '>=3.2.0 <4.0.0'
