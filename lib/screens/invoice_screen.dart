@@ -181,7 +181,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
             context: context,
             builder: (context) => AlertDialog(
               title: const Text('هشدار موجودی'),
-              content: Text('موجودی ${line.product.name}: ${current.toStringAsFixed(2)} ${line.product.unit}\nتعداد در فاکتور: ${line.quantity}\nآیا ادامه می‌دهید؟'),
+              content: Text('موجودی ${line.product.name}: ${current.toStringAsFixed(2)} ${line.product.unit}\nمقدار در فاکتور: ${NumberFormatHelper.quantity(line.quantity)}\nآیا ادامه می‌دهید؟'),
               actions: [
                 TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('انصراف')),
                 TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('ادامه')),
@@ -244,7 +244,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
             Row(children: [
               Expanded(child: TextField(controller: _quantityCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
-                decoration: const InputDecoration(labelText: 'تعداد', hintText: 'عدد وارد کنید'))),
+                decoration: const InputDecoration(labelText: 'تعداد / مقدار', hintText: 'مثلاً 1.5 یا 2.25', helperText: 'برای کالاهای فله‌ای یا دانه‌ای'))),
               const SizedBox(width: 10),
               Expanded(child: InputDecorator(
                 decoration: const InputDecoration(labelText: 'قیمت واحد (ریال)'),
@@ -261,7 +261,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
               final line = entry.value;
               return Card(child: ListTile(
                 title: Text(line.product.name),
-                subtitle: Text('${line.quantity} ${line.product.unit} × ${NumberFormatHelper.integer(line.unitPrice)} = ${NumberFormatHelper.integer(line.total)} ریال'),
+                subtitle: Text('${NumberFormatHelper.quantity(line.quantity)} ${line.product.unit} × ${NumberFormatHelper.integer(line.unitPrice)} = ${NumberFormatHelper.integer(line.total)} ریال'),
                 trailing: IconButton(tooltip: 'حذف کالا', icon: const Icon(Icons.delete_outline),
                   onPressed: () => setState(() => _lines.removeAt(entry.key))),
               ));
@@ -336,7 +336,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
                 data: _items.map((item) => [
                   NumberFormatHelper.integer((item['line_total'] as num).toDouble()),
                   NumberFormatHelper.integer((item['unit_price'] as num).toDouble()),
-                  '${item['quantity']} ${item['unit']}',
+                  '${NumberFormatHelper.quantity((item['quantity'] as num).toDouble())} ${item['unit']}',
                   '${item['product_name']}',
                 ]).toList(),
                 headerStyle: pw.TextStyle(font: font, fontWeight: pw.FontWeight.bold),
