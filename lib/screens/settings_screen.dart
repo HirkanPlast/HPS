@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import '../utils/home_navigation.dart';
 import 'package:flutter/services.dart';
 import '../services/backup_service.dart';
 import 'package:file_picker/file_picker.dart';
@@ -321,7 +322,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final isManager = widget.role == 'manager';
 
     return Scaffold(
-      appBar: AppBar(title: const Text('تنظیمات')),
+      appBar: AppBar(leading: IconButton(tooltip: 'منوی اصلی', icon: const Icon(Icons.menu), onPressed: openHomeDrawer), title: const Text('تنظیمات')),
       body: _busy
           ? const Center(child: CircularProgressIndicator())
           : ListView(
