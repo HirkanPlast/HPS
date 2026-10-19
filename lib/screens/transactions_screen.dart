@@ -109,7 +109,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                     TextField(
                       controller: priceCtrl,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(labelText: 'قیمت واحد (تومان)'),
+                      decoration: const InputDecoration(labelText: 'قیمت واحد (ریال)'),
                     ),
                     const SizedBox(height: 12),
                     TextField(
@@ -239,7 +239,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                           ),
                           subtitle: Text('${t.date} • ${t.type} • ${t.quantity} ${t.unit ?? ''}'),
                           trailing: Text(
-                            t.totalAmount.toStringAsFixed(0),
+                            '${t.totalAmount.toStringAsFixed(0)} ریال',
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                           onLongPress: () async {

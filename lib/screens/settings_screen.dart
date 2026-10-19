@@ -2,11 +2,13 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:file_picker/file_picker.dart';
-import '../utils/constants.dart';
-import '../services/telegram_service.dart';
 import '../services/backup_service.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:share_plus/share_plus.dart';
+import 'dart:typed_data';
+import '../utils/constants.dart';
 import '../database/database_helper.dart';
+import '../models/product.dart';
 import '../app.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -19,114 +21,233 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  final _tokenCtrl = TextEditingController();
-  final _chatCtrl = TextEditingController();
-  bool _autoBackup = true;
-  String? _lastBackup;
-  bool _saving = false;
   bool _busy = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final token = await TelegramService.getBotToken();
-    final chat = await TelegramService.getChatId();
-    final auto = await BackupService.isAutoBackupEnabled();
-    final last = await BackupService.getLastBackupTime();
-    setState(() {
-      _tokenCtrl.text = token ?? '';
-      _chatCtrl.text = chat ?? '';
-      _autoBackup = auto;
-      _lastBackup = last;
-    });
-  }
-
-  Future<void> _saveTelegram() async {
-    setState(() => _saving = true);
-    await TelegramService.saveCredentials(_tokenCtrl.text, _chatCtrl.text);
-    setState(() => _saving = false);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تنظیمات تلگرام ذخیره شد')),
-      );
-    }
-  }
-
-  Future<void> _testTelegram() async {
-    final ok = await TelegramService.sendMessage(
-      '✅ تست اتصال از اپ فروشگاه هیرکان پلاست\nنسخه ${AppConstants.version}',
-    );
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(ok
-              ? 'پیام تست ارسال شد'
-              : 'خطا در ارسال. توکن و چت‌آیدی را بررسی کنید'),
-        ),
-      );
-    }
-  }
-
-  Future<void> _manualBackup() async {
-    setState(() => _busy = true);
-    final ok = await BackupService.performBackup(force: true);
-    await _load();
-    setState(() => _busy = false);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ok ? 'بک‌آپ با موفقیت ارسال شد' : 'خطا در ارسال بک‌آپ')),
-      );
-    }
-  }
-
-  /// Seed the 70 products from assets/seed_products.json
-  Future<void> _seedProducts() async {
-    final isEmpty = await DatabaseHelper.instance.isProductsEmpty();
-    final clear = !isEmpty;
-
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: const Text('وارد کردن کالاهای اولیه'),
-        content: Text(
-          isEmpty
-              ? '۷۰ کالای فایل اکسل وارد شود؟'
-              : 'دیتابیس خالی نیست.\nآیا می‌خواهید کالاهای فعلی پاک شوند و ۷۰ کالای اولیه جایگزین شوند؟',
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('انصراف')),
-          TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('بله')),
-        ],
-      ),
-    );
-    if (confirm != true) return;
-
+  /// Share a JSON backup through Android's native share sheet.
+  Future<void> _shareBackup() async {
     setState(() => _busy = true);
     try {
-      final jsonStr = await rootBundle.loadString('assets/seed_products.json');
-      final list = jsonDecode(jsonStr) as List;
-      final products = list.cast<Map<String, dynamic>>();
-      final count = await DatabaseHelper.instance.seedProducts(
-        products,
-        clearExisting: clear,
+      final jsonStr = jsonEncode(await DatabaseHelper.instance.exportAllData());
+      final stamp = DateTime.now().toIso8601String().replaceAll(':', '-');
+      await Share.shareXFiles(
+        [
+          XFile.fromData(
+            Uint8List.fromList(utf8.encode(jsonStr)),
+            mimeType: 'application/json',
+            name: 'hpleila_backup_$stamp.json',
+          ),
+        ],
+        text: 'نسخه پشتیبان اطلاعات HPLeila',
+        subject: 'نسخه پشتیبان HPLeila',
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('خطا در آماده‌سازی نسخه پشتیبان: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+
+  List<List<String>> _parseCsv(String input) {
+    final rows = <List<String>>[];
+    var row = <String>[];
+    var field = StringBuffer();
+    var quoted = false;
+    for (var i = 0; i < input.length; i++) {
+      final ch = input[i];
+      if (ch == '"') {
+        if (quoted && i + 1 < input.length && input[i + 1] == '"') {
+          field.write('"');
+          i++;
+        } else {
+          quoted = !quoted;
+        }
+      } else if (ch == ',' && !quoted) {
+        row.add(field.toString());
+        field = StringBuffer();
+      } else if ((ch == '\n' || ch == '\r') && !quoted) {
+        if (ch == '\r' && i + 1 < input.length && input[i + 1] == '\n') i++;
+        row.add(field.toString());
+        if (row.any((value) => value.trim().isNotEmpty)) rows.add(row);
+        row = <String>[];
+        field = StringBuffer();
+      } else {
+        field.write(ch);
+      }
+    }
+    row.add(field.toString());
+    if (row.any((value) => value.trim().isNotEmpty)) rows.add(row);
+    return rows;
+  }
+
+  double _csvNumber(Map<String, String> row, String key, {double fallback = 0}) {
+    final value = (row[key] ?? '').trim().replaceAll(',', '');
+    return double.tryParse(value) ?? fallback;
+  }
+
+
+  /// Import a ledger CSV while preserving the product catalogue.
+  Future<void> _importLedgerCsv() async {
+    try {
+      final picked = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['csv', 'txt'],
+        withData: true,
+      );
+      if (picked == null || picked.files.isEmpty) return;
+      final bytes = picked.files.first.bytes;
+      if (bytes == null) throw Exception('فایل قابل خواندن نیست');
+
+      var csv = utf8.decode(bytes, allowMalformed: true);
+      if (csv.startsWith('\uFEFF')) csv = csv.substring(1);
+      final rows = _parseCsv(csv);
+      if (rows.length < 2) throw Exception('فایل خالی است');
+
+      final headers = rows.first.map((v) => v.trim().toLowerCase()).toList();
+      final required = ['type', 'date'];
+      if (!required.every(headers.contains)) {
+        throw Exception('سرستون‌های فایل دفتر حسابداری قابل شناسایی نیست');
+      }
+
+      final products = await DatabaseHelper.instance.getAllProducts(activeOnly: false);
+      var productCodes = products.map((p) => p.code).toSet();
+      if (productCodes.isEmpty) {
+        final seedJson = await rootBundle.loadString('assets/seed_products.json');
+        final seedRows = jsonDecode(seedJson) as List<dynamic>;
+        await DatabaseHelper.instance.seedProducts(
+          seedRows.map((item) => Map<String, dynamic>.from(item as Map)).toList(),
+        );
+        productCodes = (await DatabaseHelper.instance.getAllProducts(activeOnly: false))
+            .map((p) => p.code).toSet();
+      }
+
+      final transactions = <Map<String, dynamic>>[];
+      final expenses = <Map<String, dynamic>>[];
+      final now = DateTime.now().toIso8601String();
+      String value(Map<String, String> row, List<String> keys) {
+        for (final key in keys) {
+          final v = row[key];
+          if (v != null && v.trim().isNotEmpty) return v.trim();
+        }
+        return '';
+      }
+      double number(String input) =>
+          double.tryParse(input.replaceAll(',', '').replaceAll(' ', '')) ?? 0;
+
+      for (final values in rows.skip(1)) {
+        final row = <String, String>{};
+        for (var i = 0; i < headers.length; i++) {
+          row[headers[i]] = i < values.length ? values[i].trim() : '';
+        }
+        final kind = value(row, ['type', 'نوع', 'نوع تراکنش']);
+        final date = value(row, ['date', 'تاریخ']);
+        if (date.isEmpty) continue;
+        if (!RegExp(r'^\d{4}/\d{2}/\d{2}$').hasMatch(date)) {
+          throw Exception('تاریخ نامعتبر است: $date');
+        }
+
+        final code = value(row, ['productcode', 'product_code', 'code', 'کد کالا', 'کدکالا']);
+        final qty = number(value(row, ['quantity', 'qty', 'تعداد', 'مقدار']));
+        final unitPrice = number(value(row, ['unitpricerial', 'unit_price', 'unit price', 'قیمت واحد']));
+        final total = number(value(row, ['totalrial', 'total', 'amount', 'مبلغ', 'مبلغ کل']));
+        final name = value(row, ['title', 'name', 'شرح', 'عنوان', 'دسته', 'category']) ;
+        final notes = value(row, ['notes', 'توضیحات', 'شرح']);
+
+        // ADJ-1489 is a one-off invoice adjustment, not a stock product.
+        // Import it as an expense so it never requires a matching product code.
+        if (code.toUpperCase() == 'ADJ-1489') {
+          expenses.add({
+            'date': date,
+            'category': 'تعدیل فاکتور خرید',
+            'title': name.isEmpty ? 'تعدیل فاکتور ۱۴۸۹' : name,
+            'amount': total != 0 ? total : unitPrice,
+            'notes': notes.isEmpty ? null : notes,
+            'created_at': now,
+          });
+          continue;
+        }
+
+        if (kind.toLowerCase() == 'expense' || kind == 'هزینه') {
+          expenses.add({
+            'date': date,
+            'category': value(row, ['category', 'دسته', 'دسته‌بندی']).isEmpty ? 'سایر' : value(row, ['category', 'دسته', 'دسته‌بندی']),
+            'title': name.isEmpty ? 'هزینه واردشده' : name,
+            'amount': total != 0 ? total : unitPrice,
+            'notes': notes.isEmpty ? null : notes,
+            'created_at': now,
+          });
+          continue;
+        }
+
+        String type;
+        if (kind.toLowerCase() == 'sale' || kind == 'فروش') {
+          type = 'فروش';
+        } else if (kind.toLowerCase() == 'purchase' || kind == 'خرید' || kind == 'ورود') {
+          type = 'ورود';
+        } else if (kind == 'برگشت' || kind.toLowerCase() == 'return') {
+          type = 'برگشت';
+        } else if (kind == 'تعدیل' || kind.toLowerCase() == 'adjustment') {
+          type = 'تعدیل';
+        } else {
+          continue;
+        }
+        if (code.isEmpty || !productCodes.contains(code)) {
+          throw Exception('کد کالای موجود در برنامه پیدا نشد: ${code.isEmpty ? '(خالی)' : code}');
+        }
+        transactions.add({
+          'date': date,
+          'type': type,
+          'product_code': code,
+          'quantity': qty,
+          'unit_price': unitPrice != 0 ? unitPrice : (qty == 0 ? 0 : total / qty),
+          'notes': notes.isEmpty ? null : notes,
+          'created_by': null,
+          'created_at': now,
+        });
+      }
+
+      if (transactions.isEmpty && expenses.isEmpty) {
+        throw Exception('هیچ خرید، فروشی یا هزینه قابل واردکردن پیدا نشد');
+      }
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('واردکردن دفتر حسابداری'),
+          content: Text(
+            '${transactions.length} تراکنش و ${expenses.length} هزینه پیدا شد. '
+            'تراکنش‌ها و هزینه‌های فعلی جایگزین می‌شوند؛ فهرست کالاها حفظ می‌شود. ادامه می‌دهید؟',
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('انصراف')),
+            TextButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('ادامه')),
+          ],
+        ),
+      );
+      if (confirm != true) return;
+
+      setState(() => _busy = true);
+      await DatabaseHelper.instance.importOperationalData(
+        transactions: transactions,
+        expenses: expenses,
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$count کالا با موفقیت وارد شد')),
+          SnackBar(content: Text('وارد شد: ${transactions.length} تراکنش و ${expenses.length} هزینه')),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('خطا در وارد کردن کالاها: $e')),
+          SnackBar(content: Text('خطا در واردکردن فایل: $e')),
         );
       }
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
-    setState(() => _busy = false);
   }
 
   /// Restore full backup from a JSON file picked by user
@@ -227,63 +348,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Telegram
-                Text('بک‌آپ تلگرام', style: Theme.of(context).textTheme.titleMedium),
+                Text('نسخه پشتیبان', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 8),
-                TextField(
-                  controller: _tokenCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'توکن ربات تلگرام',
-                    hintText: '123456:ABC-DEF...',
-                  ),
-                  obscureText: true,
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _chatCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'شناسه چت (Chat ID)',
-                    hintText: '-1001234567890 یا عددی',
-                  ),
-                  keyboardType: TextInputType.number,
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: _saving ? null : _saveTelegram,
-                        child: const Text('ذخیره'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: _testTelegram,
-                        child: const Text('تست ارسال'),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                SwitchListTile(
-                  title: const Text('بک‌آپ روزانه خودکار'),
-                  subtitle: Text(
-                    _lastBackup != null
-                        ? 'آخرین بک‌آپ: $_lastBackup'
-                        : 'هنوز بک‌آپی گرفته نشده',
-                  ),
-                  value: _autoBackup,
-                  onChanged: (v) async {
-                    await BackupService.setAutoBackup(v);
-                    setState(() => _autoBackup = v);
-                  },
+                const Text(
+                  'فایل پشتیبان را با منوی اشتراک‌گذاری اندروید از طریق تلگرام، واتساپ، ایمیل یا برنامه‌های دیگر ارسال کنید.',
                 ),
                 const SizedBox(height: 8),
                 ElevatedButton.icon(
-                  onPressed: _manualBackup,
-                  icon: const Icon(Icons.backup),
-                  label: const Text('بک‌آپ دستی الان'),
+                  onPressed: _busy ? null : _shareBackup,
+                  icon: const Icon(Icons.share),
+                  label: const Text('اشتراک‌گذاری نسخه پشتیبان'),
                 ),
                 const SizedBox(height: 24),
 
@@ -291,15 +365,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Text('داده و بازیابی', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 8),
                 ListTile(
-                  leading: const Icon(Icons.download),
-                  title: const Text('وارد کردن ۷۰ کالای اولیه'),
-                  subtitle: const Text('از فایل اکسل اصلی'),
-                  onTap: _seedProducts,
+                  leading: const Icon(Icons.file_upload_outlined),
+                  title: const Text('جایگزینی کامل اطلاعات از فایل CSV/TXT'),
+                  subtitle: const Text('پاک‌کردن اطلاعات فعلی و واردکردن کالاها و تراکنش‌های فایل'),
+                  onTap: _importLedgerCsv,
                 ),
                 ListTile(
-                  leading: const Icon(Icons.upload_file),
-                  title: const Text('بازیابی کامل از فایل JSON'),
-                  subtitle: const Text('کالا + تراکنش + هزینه'),
+                  leading: const Icon(Icons.restore),
+                  title: const Text('بازیابی از فایل پشتیبان'),
+                  subtitle: const Text('جایگزینی داده‌های فعلی با فایل JSON'),
                   onTap: _restoreFromFile,
                 ),
                 if (isManager) ...[
