@@ -1,12 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:file_picker/file_picker.dart';
 import '../utils/constants.dart';
 import '../services/telegram_service.dart';
 import '../services/backup_service.dart';
-import '../database/database_helper.dart';
 import '../app.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -83,50 +81,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
     }
   }
 
-  /// Seed the 70 products from assets/seed_products.json
-  Future<void> _seedProducts() async {
-    final isEmpty = await DatabaseHelper.instance.isProductsEmpty();
-    final clear = !isEmpty;
-
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: const Text('وارد کردن کالاهای اولیه'),
-        content: Text(
-          isEmpty
-              ? '۷۰ کالای فایل اکسل وارد شود؟'
-              : 'دیتابیس خالی نیست.\nآیا می‌خواهید کالاهای فعلی پاک شوند و ۷۰ کالای اولیه جایگزین شوند؟',
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('انصراف')),
-          TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('بله')),
-        ],
-      ),
-    );
-    if (confirm != true) return;
-
+  /// Export all app data to a local JSON file (separate from Telegram backup).
+  Future<void> _localBackup() async {
     setState(() => _busy = true);
     try {
-      final jsonStr = await rootBundle.loadString('assets/seed_products.json');
-      final list = jsonDecode(jsonStr) as List;
-      final products = list.cast<Map<String, dynamic>>();
-      final count = await DatabaseHelper.instance.seedProducts(
-        products,
-        clearExisting: clear,
+      final jsonStr = jsonEncode(await BackupService.exportAllData());
+      final bytes = utf8.encode(jsonStr);
+      final stamp = DateTime.now().toIso8601String().replaceAll(':', '-');
+      final path = await FilePicker.platform.saveFile(
+        dialogTitle: 'ذخیره نسخه پشتیبان HPLeila',
+        fileName: 'hpleila_backup_$stamp.json',
+        type: FileType.custom,
+        allowedExtensions: ['json'],
+        bytes: bytes,
       );
-      if (mounted) {
+      if (mounted && path != null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('$count کالا با موفقیت وارد شد')),
+          const SnackBar(content: Text('فایل پشتیبان ذخیره شد')),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('خطا در وارد کردن کالاها: $e')),
+          SnackBar(content: Text('خطا در تهیه نسخه پشتیبان: $e')),
         );
       }
+    } finally {
+      if (mounted) setState(() => _busy = false);
     }
-    setState(() => _busy = false);
   }
 
   /// Restore full backup from a JSON file picked by user
@@ -291,15 +273,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 Text('داده و بازیابی', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 8),
                 ListTile(
-                  leading: const Icon(Icons.download),
-                  title: const Text('وارد کردن ۷۰ کالای اولیه'),
-                  subtitle: const Text('از فایل اکسل اصلی'),
-                  onTap: _seedProducts,
+                  leading: const Icon(Icons.save_alt),
+                  title: const Text('تهیه نسخه پشتیبان در گوشی'),
+                  subtitle: const Text('ذخیره کالاها، تراکنش‌ها و هزینه‌ها در فایل JSON'),
+                  onTap: _localBackup,
                 ),
                 ListTile(
-                  leading: const Icon(Icons.upload_file),
-                  title: const Text('بازیابی کامل از فایل JSON'),
-                  subtitle: const Text('کالا + تراکنش + هزینه'),
+                  leading: const Icon(Icons.restore),
+                  title: const Text('بازیابی از فایل پشتیبان'),
+                  subtitle: const Text('جایگزینی داده‌های فعلی با فایل JSON'),
                   onTap: _restoreFromFile,
                 ),
                 if (isManager) ...[
