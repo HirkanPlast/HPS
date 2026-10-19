@@ -506,21 +506,31 @@ class DatabaseHelper {
     final products = await getAllProducts(activeOnly: false);
     final transactions = await getTransactions(limit: 100000);
     final expenses = await getExpenses();
+    final invoiceRows = await getInvoices(limit: 100000);
+    final invoices = <Map<String, dynamic>>[];
+    for (final invoice in invoiceRows) {
+      final record = Map<String, dynamic>.from(invoice);
+      record['items'] = await getInvoiceItems(invoice['id'] as int);
+      invoices.add(record);
+    }
 
     return {
-      'version': '1.0.1',
+      'version': '1.1.0',
       'exported_at': DateTime.now().toIso8601String(),
       'products': products.map((p) => p.toMap()).toList(),
       'transactions': transactions.map((t) => t.toMap()).toList(),
       'expenses': expenses.map((e) => e.toMap()).toList(),
+      'invoices': invoices,
     };
   }
 
-  /// Full restore from backup JSON (products + transactions + expenses)
+  /// Restores old backups too; invoice data is optional for backward compatibility.
   Future<void> importAllData(Map<String, dynamic> data, {bool clearFirst = true}) async {
     final db = await database;
     await db.transaction((txn) async {
       if (clearFirst) {
+        await txn.delete('invoice_items');
+        await txn.delete('invoices');
         await txn.delete('transactions');
         await txn.delete('expenses');
         await txn.delete('products');
@@ -529,7 +539,6 @@ class DatabaseHelper {
       final products = data['products'] as List? ?? [];
       for (final p in products) {
         final map = Map<String, dynamic>.from(p)..remove('id');
-        // Ensure required fields
         map['is_active'] = map['is_active'] ?? 1;
         await txn.insert('products', map, conflictAlgorithm: ConflictAlgorithm.replace);
       }
@@ -544,6 +553,22 @@ class DatabaseHelper {
       for (final e in expenses) {
         final map = Map<String, dynamic>.from(e)..remove('id');
         await txn.insert('expenses', map);
+      }
+
+      final invoices = data['invoices'] as List? ?? [];
+      for (final invoiceData in invoices) {
+        final invoice = Map<String, dynamic>.from(invoiceData);
+        final items = invoice['items'] as List? ?? [];
+        invoice.remove('items');
+        invoice.remove('id');
+        final invoiceId = await txn.insert('invoices', invoice, conflictAlgorithm: ConflictAlgorithm.replace);
+        for (final itemData in items) {
+          final item = Map<String, dynamic>.from(itemData);
+          item.remove('id');
+          item.remove('invoice_id');
+          item['invoice_id'] = invoiceId;
+          await txn.insert('invoice_items', item);
+        }
       }
     });
   }
