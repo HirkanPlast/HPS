@@ -353,6 +353,7 @@ class DatabaseHelper {
   Future<void> importOperationalData({
     required List<Map<String, dynamic>> transactions,
     required List<Map<String, dynamic>> expenses,
+    bool resetInitialStock = false,
   }) async {
     final db = await database;
     await db.transaction((txn) async {
@@ -366,6 +367,10 @@ class DatabaseHelper {
       }
       await txn.delete('transactions');
       await txn.delete('expenses');
+      if (resetInitialStock) {
+        // A full ledger import already contains stock movements; do not add seeded opening stock again.
+        await txn.update('products', {'initial_stock': 0});
+      }
       for (final t in transactions) {
         await txn.insert('transactions', t);
       }

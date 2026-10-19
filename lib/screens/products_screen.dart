@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../database/database_helper.dart';
 import '../models/product.dart';
 import '../utils/constants.dart';
+import '../utils/number_format.dart';
 
 class ProductsScreen extends StatefulWidget {
   const ProductsScreen({super.key});
@@ -38,8 +39,8 @@ class _ProductsScreenState extends State<ProductsScreen> {
     final unitCtrl = TextEditingController(text: existing?.unit ?? 'تعدادی');
     final initCtrl = TextEditingController(text: existing?.initialStock.toString() ?? '0');
     final minCtrl = TextEditingController(text: existing?.minStock.toString() ?? '0');
-    final buyCtrl = TextEditingController(text: existing?.buyPrice.toStringAsFixed(0) ?? '0');
-    final sellCtrl = TextEditingController(text: existing?.sellPrice.toStringAsFixed(0) ?? '0');
+    final buyCtrl = TextEditingController(text: existing == null ? '0' : NumberFormatHelper.integer(existing.buyPrice));
+    final sellCtrl = TextEditingController(text: existing == null ? '0' : NumberFormatHelper.integer(existing.sellPrice));
     String category = existing?.category ?? AppConstants.productCategories.last;
 
     await showModalBottomSheet(

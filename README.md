@@ -2,7 +2,7 @@
 
 اپلیکیشن مدیریت انبار، فروش، خرید و هزینه‌های فروشگاه هیرکان پلاست.
 
-**نسخه:** 1.5.0
+**نسخه:** 1.5.2
 
 ## امکانات
 
@@ -30,15 +30,13 @@ flutter pub get
 flutter run
 ```
 
-## ساخت APK
+## ساخت APK مخصوص گوشی‌های اندرویدی
 
 ```bash
-flutter build apk --release
+flutter build apk --release --target-platform android-arm,android-arm64 --split-per-abi
 ```
 
-فایل خروجی معمولاً در مسیر زیر قرار می‌گیرد:
-
-`build/app/outputs/flutter-apk/app-release.apk`
+برای Galaxy J4 از فایل `app-armeabi-v7a-release.apk` و برای Galaxy A34 و A52 معمولاً از فایل `app-arm64-v8a-release.apk` استفاده کنید. فایل‌های خروجی در `build/app/outputs/flutter-apk/` قرار می‌گیرند.
 
 ## تهیه و اشتراک‌گذاری نسخه پشتیبان
 

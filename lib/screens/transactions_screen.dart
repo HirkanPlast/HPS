@@ -4,6 +4,7 @@ import '../models/transaction.dart';
 import '../models/product.dart';
 import '../utils/persian_date.dart';
 import '../utils/constants.dart';
+import '../utils/number_format.dart';
 
 class TransactionsScreen extends StatefulWidget {
   const TransactionsScreen({super.key});
@@ -239,7 +240,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
                           ),
                           subtitle: Text('${t.date} • ${t.type} • ${t.quantity} ${t.unit ?? ''}'),
                           trailing: Text(
-                            '${t.totalAmount.toStringAsFixed(0)} ریال',
+                            '${NumberFormatHelper.integer(t.totalAmount)} ریال',
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                           onLongPress: () async {

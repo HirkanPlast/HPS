@@ -127,6 +127,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
       final transactions = <Map<String, dynamic>>[];
       final expenses = <Map<String, dynamic>>[];
+      final seenLedgerRows = <String>{};
       final now = DateTime.now().toIso8601String();
       String value(Map<String, String> row, List<String> keys) {
         for (final key in keys) {
@@ -139,6 +140,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           double.tryParse(input.replaceAll(',', '').replaceAll(' ', '')) ?? 0;
 
       for (final values in rows.skip(1)) {
+        // Ignore exact duplicate CSV rows so repeated export lines are not counted twice.
+        final rowSignature = values.map((v) => v.trim()).join('\\u001f');
+        if (!seenLedgerRows.add(rowSignature)) continue;
         final row = <String, String>{};
         for (var i = 0; i < headers.length; i++) {
           row[headers[i]] = i < values.length ? values[i].trim() : '';
@@ -218,8 +222,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
         builder: (dialogContext) => AlertDialog(
           title: const Text('واردکردن دفتر حسابداری'),
           content: Text(
-            '${transactions.length} تراکنش و ${expenses.length} هزینه پیدا شد. '
-            'تراکنش‌ها و هزینه‌های فعلی جایگزین می‌شوند؛ فهرست کالاها حفظ می‌شود. ادامه می‌دهید؟',
+            '${transactions.length} تراکنش و ${expenses.length} هزینه پس از حذف ردیف‌های تکراری پیدا شد. '
+            'تراکنش‌ها و هزینه‌های فعلی جایگزین می‌شوند؛ فهرست کالاها حفظ می‌شود. '
+            'برای جلوگیری از دوباره‌شماری، موجودی اولیهٔ پیش‌فرض کالاها صفر می‌شود؛ اگر موجودی افتتاحیهٔ دستی دارید، پیش از ادامه نسخهٔ پشتیبان بگیرید. ادامه می‌دهید؟',
           ),
           actions: [
             TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('انصراف')),
@@ -233,6 +238,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await DatabaseHelper.instance.importOperationalData(
         transactions: transactions,
         expenses: expenses,
+        resetInitialStock: true,
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
