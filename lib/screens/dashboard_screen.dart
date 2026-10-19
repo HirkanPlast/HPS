@@ -34,13 +34,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
   }
 
-  String _money(double v) {
-    if (v >= 1000000) {
-      return '${(v / 1000000).toStringAsFixed(1)} م';
-    } else if (v >= 1000) {
-      return '${(v / 1000).toStringAsFixed(0)} هزار';
-    }
-    return v.toStringAsFixed(0);
+  String _formatNumber(double value) {
+    final rounded = value.round().toString();
+    return rounded.replaceAllMapped(
+      RegExp(r'(?<!^)(?=(\\d{3})+$)'),
+      (match) => ',',
+    );
+  }
+
+  // All stored amounts are Rial. Dashboard also shows the Toman equivalent.
+  String _money(double value) {
+    return '${_formatNumber(value)} ریال\\n${_formatNumber(value / 10)} تومان';
   }
 
   @override
@@ -249,7 +253,8 @@ class _StatCard extends StatelessWidget {
             Text(
               value,
               style: TextStyle(
-                fontSize: 22,
+                fontSize: 15,
+                height: 1.5,
                 fontWeight: FontWeight.bold,
                 color: color,
               ),
