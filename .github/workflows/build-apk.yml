@@ -13,33 +13,27 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up JDK 17
         uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
-
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.24.0'
           channel: stable
           cache: true
-
       - name: Install dependencies
         run: flutter pub get
-
-      - name: Build release APK
-        run: flutter build apk --release
-
-      - name: Upload APK
+      - name: Build split release APKs
+        run: flutter build apk --release --split-per-abi
+      - name: Upload split APKs
         uses: actions/upload-artifact@v4
         with:
-          name: app-release-apk
-          path: build/app/outputs/flutter-apk/app-release.apk
+          name: hpleila-1.5.1-split-apks
+          path: build/app/outputs/flutter-apk/*-release.apk
           if-no-files-found: error
