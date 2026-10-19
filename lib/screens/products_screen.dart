@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/home_navigation.dart';
 import '../database/database_helper.dart';
 import '../models/product.dart';
 import '../utils/constants.dart';
@@ -171,7 +172,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('مدیریت کالاها')),
+      appBar: AppBar(leading: IconButton(tooltip: 'منوی اصلی', icon: const Icon(Icons.menu), onPressed: openHomeDrawer), title: const Text('مدیریت کالاها')),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showEditDialog(),
         icon: const Icon(Icons.add),
