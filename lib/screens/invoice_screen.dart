@@ -243,7 +243,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
             const SizedBox(height: 10),
             Row(children: [
               Expanded(child: TextField(controller: _quantityCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
+                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
                 decoration: const InputDecoration(labelText: 'تعداد', hintText: 'عدد وارد کنید'))),
               const SizedBox(width: 10),
               Expanded(child: InputDecorator(
@@ -267,13 +267,13 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
               ));
             }),
             const SizedBox(height: 12),
-            TextField(controller: _discountCtrl, keyboardType: TextInputType.number,
-              inputFormatters: [_ThousandsSeparatorInputFormatter()],
-              decoration: const InputDecoration(labelText: 'تخفیف کل (ریال)', hintText: 'مبلغ را وارد کنید', helperText: 'پس از جمع اقلام از مبلغ نهایی کسر می‌شود')),
-            const SizedBox(height: 10),
             TextField(controller: _notesCtrl, maxLines: 2, decoration: const InputDecoration(labelText: 'توضیحات (اختیاری)')),
             const SizedBox(height: 16),
             _SummaryRow(label: 'جمع کالاها', value: _subtotal),
+            const SizedBox(height: 8),
+            TextField(controller: _discountCtrl, keyboardType: TextInputType.number,
+              inputFormatters: [_ThousandsSeparatorInputFormatter()],
+              decoration: const InputDecoration(labelText: 'تخفیف کل (ریال)', hintText: 'مبلغ را وارد کنید', helperText: 'پس از جمع اقلام از مبلغ نهایی کسر می‌شود')),
             _SummaryRow(label: 'تخفیف', value: _discount),
             const Divider(),
             _SummaryRow(label: 'مبلغ نهایی', value: _total, bold: true),
