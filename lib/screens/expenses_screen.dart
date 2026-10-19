@@ -3,6 +3,7 @@ import '../database/database_helper.dart';
 import '../models/expense.dart';
 import '../utils/persian_date.dart';
 import '../utils/constants.dart';
+import '../utils/number_format.dart';
 
 class ExpensesScreen extends StatefulWidget {
   const ExpensesScreen({super.key});
@@ -154,7 +155,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                           title: Text(e.title),
                           subtitle: Text('${e.date} • ${e.category}'),
                           trailing: Text(
-                            '${e.amount.toStringAsFixed(0)} ریال',
+                            '${NumberFormatHelper.integer(e.amount)} ریال',
                             style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
                           ),
                           onLongPress: () async {
