@@ -111,7 +111,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                           child: TextField(
                             controller: buyCtrl,
                             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            decoration: const InputDecoration(labelText: 'قیمت خرید'),
+                            decoration: const InputDecoration(labelText: 'قیمت خرید (ریال)'),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -119,7 +119,7 @@ class _ProductsScreenState extends State<ProductsScreen> {
                           child: TextField(
                             controller: sellCtrl,
                             keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            decoration: const InputDecoration(labelText: 'قیمت فروش'),
+                            decoration: const InputDecoration(labelText: 'قیمت فروش (ریال)'),
                           ),
                         ),
                       ],
