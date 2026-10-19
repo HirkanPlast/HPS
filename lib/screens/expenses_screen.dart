@@ -79,7 +79,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                     TextField(
                       controller: amountCtrl,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(labelText: 'مبلغ (تومان)'),
+                      decoration: const InputDecoration(labelText: 'مبلغ (ریال)'),
                     ),
                     const SizedBox(height: 12),
                     TextField(
@@ -154,7 +154,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
                           title: Text(e.title),
                           subtitle: Text('${e.date} • ${e.category}'),
                           trailing: Text(
-                            e.amount.toStringAsFixed(0),
+                            '${e.amount.toStringAsFixed(0)} ریال',
                             style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.red),
                           ),
                           onLongPress: () async {
