@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../services/backup_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
@@ -9,7 +8,6 @@ import 'dart:typed_data';
 import '../utils/constants.dart';
 import '../database/database_helper.dart';
 import '../models/product.dart';
-import '../app.dart';
 
 class SettingsScreen extends StatefulWidget {
   final String role;
@@ -329,31 +327,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           : ListView(
               padding: const EdgeInsets.all(16),
               children: [
-                // Role info
-                Card(
-                  child: ListTile(
-                    leading: Icon(
-                      isManager ? Icons.admin_panel_settings : Icons.point_of_sale,
-                    ),
-                    title: Text(isManager ? 'نقش: مدیر' : 'نقش: فروشنده'),
-                    subtitle: const Text('برای تغییر نقش دکمه زیر را بزنید'),
-                    trailing: TextButton(
-                      child: const Text('تغییر نقش'),
-                      onPressed: () async {
-                        final prefs = await SharedPreferences.getInstance();
-                        await prefs.remove(AppConstants.keyRole);
-                        if (mounted) {
-                          Navigator.of(context).pushAndRemoveUntil(
-                            MaterialPageRoute(builder: (_) => const SplashWrapper()),
-                            (_) => false,
-                          );
-                        }
-                      },
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
+                const SizedBox(height: 8),
                 Text('نسخه پشتیبان', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 8),
                 const Text(
