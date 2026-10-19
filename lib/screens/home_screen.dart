@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../utils/home_navigation.dart';
 import 'invoice_screen.dart';
+import 'help_screen.dart';
+import 'backup_restore_screen.dart';
 import 'dashboard_screen.dart';
 import 'transactions_screen.dart';
 import 'inventory_screen.dart';
@@ -94,6 +96,22 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
             _drawerItem(context, 5, Icons.settings_outlined, 'تنظیمات'),
+            ListTile(
+              leading: const Icon(Icons.backup_outlined),
+              title: const Text('پشتیبان‌گیری و بازیابی'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BackupRestoreScreen()));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.help_outline),
+              title: const Text('راهنما'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const HelpScreen()));
+              },
+            ),
           ],
         )),
       ),
