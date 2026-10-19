@@ -39,6 +39,7 @@ dependencies:
 
   # File import
   file_picker: ^8.1.2
+  share_plus: ^10.1.4
 
 dev_dependencies:
   flutter_test:
