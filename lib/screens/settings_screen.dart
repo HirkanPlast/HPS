@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import '../utils/constants.dart';
 import '../services/telegram_service.dart';
 import '../services/backup_service.dart';
+import '../database/database_helper.dart';
 import '../app.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -85,7 +86,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _localBackup() async {
     setState(() => _busy = true);
     try {
-      final jsonStr = jsonEncode(await BackupService.exportAllData());
+      final jsonStr = jsonEncode(await DatabaseHelper.instance.exportAllData());
       final bytes = utf8.encode(jsonStr);
       final stamp = DateTime.now().toIso8601String().replaceAll(':', '-');
       final path = await FilePicker.platform.saveFile(
