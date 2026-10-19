@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/home_navigation.dart';
 import '../database/database_helper.dart';
 import '../models/transaction.dart';
 import '../models/product.dart';
@@ -208,6 +209,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(tooltip: 'منوی اصلی', icon: const Icon(Icons.menu), onPressed: openHomeDrawer),
         title: const Text('تراکنش‌ها'),
         actions: [
           IconButton(
