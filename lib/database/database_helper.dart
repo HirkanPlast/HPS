@@ -348,6 +348,33 @@ class DatabaseHelper {
     };
   }
 
+
+  /// Replace ledger records while preserving the existing product catalogue.
+  Future<void> importOperationalData({
+    required List<Map<String, dynamic>> transactions,
+    required List<Map<String, dynamic>> expenses,
+  }) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      final products = await txn.query('products', columns: ['code']);
+      final codes = products.map((p) => p['code'] as String).toSet();
+      for (final t in transactions) {
+        final code = t['product_code'] as String;
+        if (!codes.contains(code)) {
+          throw Exception('کد کالای ناموجود: $code');
+        }
+      }
+      await txn.delete('transactions');
+      await txn.delete('expenses');
+      for (final t in transactions) {
+        await txn.insert('transactions', t);
+      }
+      for (final e in expenses) {
+        await txn.insert('expenses', e);
+      }
+    });
+  }
+
   // ========== BACKUP / RESTORE ==========
 
   Future<Map<String, dynamic>> exportAllData() async {
