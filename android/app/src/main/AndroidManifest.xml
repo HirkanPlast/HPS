@@ -4,7 +4,7 @@
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
 
     <application
-        android:label="فروشگاه هیرکان پلاست"
+        android:label="HPLeila"
         android:name="${applicationName}">
         <activity
             android:name=".MainActivity"
