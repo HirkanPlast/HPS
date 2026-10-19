@@ -37,14 +37,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
   String _formatNumber(double value) {
     final rounded = value.round().toString();
     return rounded.replaceAllMapped(
-      RegExp(r'(?<!^)(?=(\\d{3})+$)'),
+      RegExp(r'(?<!^)(?=(\d{3})+$)'),
       (match) => ',',
     );
   }
 
   // All stored amounts are Rial. Dashboard also shows the Toman equivalent.
   String _money(double value) {
-    return '${_formatNumber(value)} ریال\\n${_formatNumber(value / 10)} تومان';
+    return '${_formatNumber(value)} ریال\n${_formatNumber(value / 10)} تومان';
   }
 
   @override
