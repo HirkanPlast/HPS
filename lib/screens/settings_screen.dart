@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:file_picker/file_picker.dart';
 import '../utils/constants.dart';
@@ -157,8 +158,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _importLedgerCsv(List<List<String>> rows, List<String> headers) async {
     final transactions = <Map<String, dynamic>>[];
     final expenses = <Map<String, dynamic>>[];
-    final productCodes = (await DatabaseHelper.instance.getAllProducts(activeOnly: false))
+    var productCodes = (await DatabaseHelper.instance.getAllProducts(activeOnly: false))
         .map((p) => p.code).toSet();
+    if (productCodes.isEmpty) {
+      final seedJson = await rootBundle.loadString('assets/seed_products.json');
+      final seedRows = jsonDecode(seedJson) as List<dynamic>;
+      await DatabaseHelper.instance.seedProducts(
+        seedRows.map((item) => Map<String, dynamic>.from(item as Map)).toList(),
+      );
+      productCodes = (await DatabaseHelper.instance.getAllProducts(activeOnly: false))
+          .map((p) => p.code).toSet();
+    }
     final now = DateTime.now().toIso8601String();
     var salesCount = 0;
     var purchasesCount = 0;
