@@ -5,6 +5,7 @@ import '../models/product.dart';
 import '../utils/persian_date.dart';
 import '../utils/constants.dart';
 import '../utils/number_format.dart';
+import 'invoice_screen.dart';
 
 class TransactionsScreen extends StatefulWidget {
   const TransactionsScreen({super.key});
@@ -206,7 +207,18 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('تراکنش‌ها')),
+      appBar: AppBar(
+        title: const Text('تراکنش‌ها'),
+        actions: [
+          IconButton(
+            tooltip: 'فاکتورهای فروش',
+            icon: const Icon(Icons.receipt_long),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const InvoicesScreen()),
+            ),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showAddDialog,
         icon: const Icon(Icons.add),

@@ -40,6 +40,8 @@ dependencies:
   # File import and sharing
   file_picker: ^8.1.2
   share_plus: ^10.1.4
+  pdf: ^3.11.1
+  printing: ^5.13.4
 
 dev_dependencies:
   flutter_test:

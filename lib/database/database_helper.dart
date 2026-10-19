@@ -21,8 +21,9 @@ class DatabaseHelper {
     final path = join(dbPath, fileName);
     return await openDatabase(
       path,
-      version: 1,
+      version: 2,
       onCreate: _createDB,
+      onUpgrade: _onUpgrade,
     );
   }
 
@@ -74,6 +75,43 @@ class DatabaseHelper {
     await db.execute('CREATE INDEX idx_trans_code ON transactions(product_code)');
     await db.execute('CREATE INDEX idx_trans_type ON transactions(type)');
     await db.execute('CREATE INDEX idx_exp_date ON expenses(date)');
+    await _createInvoiceTables(db);
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) await _createInvoiceTables(db);
+  }
+
+  Future<void> _createInvoiceTables(DatabaseExecutor db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS invoices (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        invoice_number TEXT NOT NULL UNIQUE,
+        date TEXT NOT NULL,
+        customer_name TEXT,
+        customer_phone TEXT,
+        notes TEXT,
+        subtotal REAL NOT NULL,
+        discount REAL NOT NULL DEFAULT 0,
+        total REAL NOT NULL,
+        created_at TEXT NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS invoice_items (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        invoice_id INTEGER NOT NULL,
+        product_code TEXT NOT NULL,
+        product_name TEXT NOT NULL,
+        unit TEXT NOT NULL,
+        quantity REAL NOT NULL,
+        unit_price REAL NOT NULL,
+        line_total REAL NOT NULL,
+        FOREIGN KEY (invoice_id) REFERENCES invoices (id) ON DELETE CASCADE
+      )
+    ''');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_invoice_date ON invoices(date)');
+    await db.execute('CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice ON invoice_items(invoice_id)');
   }
 
   // ========== PRODUCTS ==========
@@ -169,6 +207,88 @@ class DatabaseHelper {
   Future<int> deleteTransaction(int id) async {
     final db = await database;
     return await db.delete('transactions', where: 'id = ?', whereArgs: [id]);
+  }
+
+  // ========== SALES INVOICES ==========
+
+  Future<List<Map<String, dynamic>>> getInvoices({int limit = 500}) async {
+    final db = await database;
+    return db.query('invoices', orderBy: 'id DESC', limit: limit);
+  }
+
+  Future<Map<String, dynamic>?> getInvoice(int id) async {
+    final db = await database;
+    final rows = await db.query('invoices', where: 'id = ?', whereArgs: [id], limit: 1);
+    return rows.isEmpty ? null : rows.first;
+  }
+
+  Future<List<Map<String, dynamic>>> getInvoiceItems(int invoiceId) async {
+    final db = await database;
+    return db.query('invoice_items', where: 'invoice_id = ?', whereArgs: [invoiceId], orderBy: 'id ASC');
+  }
+
+  /// Saves an invoice, its items, and matching stock-sale transactions atomically.
+  /// Existing sales reports receive net line values after invoice discount allocation.
+  Future<int> insertInvoice({
+    required String date,
+    String? customerName,
+    String? customerPhone,
+    String? notes,
+    required double discount,
+    required List<Map<String, dynamic>> items,
+  }) async {
+    if (items.isEmpty) throw ArgumentError('فاکتور باید حداقل یک کالا داشته باشد.');
+    final normalized = items.map((item) {
+      final quantity = (item['quantity'] as num).toDouble();
+      final unitPrice = (item['unit_price'] as num).toDouble();
+      if (quantity <= 0 || unitPrice < 0) throw ArgumentError('تعداد و قیمت کالا معتبر نیست.');
+      return <String, dynamic>{
+        'product_code': item['product_code'] as String,
+        'product_name': item['product_name'] as String,
+        'unit': item['unit'] as String,
+        'quantity': quantity,
+        'unit_price': unitPrice,
+        'line_total': quantity * unitPrice,
+      };
+    }).toList();
+    final subtotal = normalized.fold<double>(0, (sum, item) => sum + (item['line_total'] as double));
+    if (discount < 0 || discount > subtotal) throw ArgumentError('تخفیف باید بین صفر و جمع فاکتور باشد.');
+
+    final db = await database;
+    return db.transaction<int>((txn) async {
+      final now = DateTime.now().toIso8601String();
+      final nextId = Sqflite.firstIntValue(await txn.rawQuery('SELECT COALESCE(MAX(id), 0) + 1 FROM invoices')) ?? 1;
+      final invoiceNumber = 'HP-@@{date.replaceAll('/', '')}-@@{nextId.toString().padLeft(4, '0')}';
+      final invoiceId = await txn.insert('invoices', {
+        'invoice_number': invoiceNumber,
+        'date': date,
+        'customer_name': (customerName ?? '').trim().isEmpty ? null : customerName!.trim(),
+        'customer_phone': (customerPhone ?? '').trim().isEmpty ? null : customerPhone!.trim(),
+        'notes': (notes ?? '').trim().isEmpty ? null : notes!.trim(),
+        'subtotal': subtotal,
+        'discount': discount,
+        'total': subtotal - discount,
+        'created_at': now,
+      });
+      for (final item in normalized) {
+        final gross = item['line_total'] as double;
+        final allocatedDiscount = subtotal == 0 ? 0.0 : discount * gross / subtotal;
+        final netLine = gross - allocatedDiscount;
+        final quantity = item['quantity'] as double;
+        await txn.insert('invoice_items', {'invoice_id': invoiceId, ...item});
+        await txn.insert('transactions', {
+          'date': date,
+          'type': 'فروش',
+          'product_code': item['product_code'],
+          'quantity': quantity,
+          'unit_price': quantity == 0 ? 0.0 : netLine / quantity,
+          'notes': 'فاکتور $invoiceNumber',
+          'created_by': 'invoice',
+          'created_at': now,
+        });
+      }
+      return invoiceId;
+    });
   }
 
   // ========== STOCK CALCULATION ==========
