@@ -157,6 +157,20 @@ class _SettingsScreenState extends State<SettingsScreen> {
         final name = value(row, ['title', 'name', 'شرح', 'عنوان', 'دسته', 'category']) ;
         final notes = value(row, ['notes', 'توضیحات', 'شرح']);
 
+        // ADJ-1489 is a one-off invoice adjustment, not a stock product.
+        // Import it as an expense so it never requires a matching product code.
+        if (code.toUpperCase() == 'ADJ-1489') {
+          expenses.add({
+            'date': date,
+            'category': 'تعدیل فاکتور خرید',
+            'title': name.isEmpty ? 'تعدیل فاکتور ۱۴۸۹' : name,
+            'amount': total != 0 ? total : unitPrice,
+            'notes': notes.isEmpty ? null : notes,
+            'created_at': now,
+          });
+          continue;
+        }
+
         if (kind.toLowerCase() == 'expense' || kind == 'هزینه') {
           expenses.add({
             'date': date,
