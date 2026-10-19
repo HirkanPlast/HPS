@@ -19,7 +19,18 @@ class InvoicesScreen extends StatefulWidget {
 
 class _InvoicesScreenState extends State<InvoicesScreen> {
   List<Map<String, dynamic>> _invoices = [];
+  final _searchCtrl = TextEditingController();
   bool _loading = true;
+  List<Map<String, dynamic>> get _filteredInvoices {
+    final query = _searchCtrl.text.trim().toLowerCase().replaceAll(',', '');
+    if (query.isEmpty) return _invoices;
+    return _invoices.where((invoice) {
+      final haystack = '${invoice['invoice_number']} ${invoice['customer_name'] ?? ''} ${invoice['customer_phone'] ?? ''} ${invoice['date']} ${invoice['total']}'.toLowerCase().replaceAll(',', '');
+      return haystack.contains(query);
+    }).toList();
+  }
+  @override
+  void dispose() { _searchCtrl.dispose(); super.dispose(); }
   @override
   void initState() { super.initState(); _load(); }
   Future<void> _load() async {
@@ -42,15 +53,31 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
     ),
     body: _loading
       ? const Center(child: CircularProgressIndicator())
-      : _invoices.isEmpty
-        ? const Center(child: Text('هنوز فاکتوری ثبت نشده است'))
-        : RefreshIndicator(
+      : Column(children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+            child: TextField(
+              controller: _searchCtrl,
+              onChanged: (_) => setState(() {}),
+              decoration: InputDecoration(
+                hintText: 'جست‌وجوی شماره، مشتری یا تاریخ فاکتور',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _searchCtrl.text.isEmpty ? null : IconButton(
+                  tooltip: 'پاک‌کردن جست‌وجو', icon: const Icon(Icons.close),
+                  onPressed: () { _searchCtrl.clear(); setState(() {}); },
+                ),
+              ),
+            ),
+          ),
+          Expanded(child: _filteredInvoices.isEmpty
+            ? Center(child: Text(_invoices.isEmpty ? 'هنوز فاکتوری ثبت نشده است' : 'فاکتوری با این مشخصات پیدا نشد'))
+            : RefreshIndicator(
           onRefresh: _load,
           child: ListView.builder(
             padding: const EdgeInsets.only(bottom: 88, top: 8),
-            itemCount: _invoices.length,
+            itemCount: _filteredInvoices.length,
             itemBuilder: (context, index) {
-              final invoice = _invoices[index];
+              final invoice = _filteredInvoices[index];
               final customer = (invoice['customer_name'] as String?)?.trim();
               return Card(
                 margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
@@ -67,7 +94,8 @@ class _InvoicesScreenState extends State<InvoicesScreen> {
               );
             },
           ),
-        ),
+        )),
+      ]),
   );
 }
 
@@ -89,9 +117,8 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   final _customerCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   final _notesCtrl = TextEditingController();
-  final _quantityCtrl = TextEditingController(text: '1');
-  final _priceCtrl = TextEditingController();
-  final _discountCtrl = TextEditingController(text: '0');
+  final _quantityCtrl = TextEditingController();
+  final _discountCtrl = TextEditingController();
   List<Product> _products = [];
   Product? _selectedProduct;
   final List<_InvoiceLine> _lines = [];
@@ -111,7 +138,7 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
   @override
   void dispose() {
     _customerCtrl.dispose(); _phoneCtrl.dispose(); _notesCtrl.dispose();
-    _quantityCtrl.dispose(); _priceCtrl.dispose(); _discountCtrl.dispose();
+    _quantityCtrl.dispose(); _discountCtrl.dispose();
     super.dispose();
   }
   Future<void> _loadProducts() async {
@@ -119,22 +146,21 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
     if (!mounted) return;
     setState(() {
       _products = products;
-      _selectedProduct = products.isEmpty ? null : products.first;
-      _priceCtrl.text = _selectedProduct?.sellPrice.toStringAsFixed(0) ?? '';
+      _selectedProduct = null;
       _loading = false;
     });
   }
   void _addLine() {
     final product = _selectedProduct;
     final quantity = double.tryParse(_quantityCtrl.text.replaceAll(',', '').trim()) ?? 0;
-    final price = double.tryParse(_priceCtrl.text.replaceAll(',', '').trim()) ?? -1;
-    if (product == null || quantity <= 0 || price < 0) {
+    final price = product?.sellPrice ?? -1;
+    if (product == null || quantity <= 0 || price <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('کالا، تعداد و قیمت معتبر را وارد کنید')));
       return;
     }
     setState(() {
       _lines.add(_InvoiceLine(product: product, quantity: quantity, unitPrice: price));
-      _quantityCtrl.text = '1';
+      _quantityCtrl.clear();
     });
   }
   Future<void> _save() async {
@@ -207,21 +233,24 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
             const Text('افزودن کالا', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
             DropdownButtonFormField<Product>(
-              value: _selectedProduct, isExpanded: true, decoration: const InputDecoration(labelText: 'کالا'),
+              value: _selectedProduct, isExpanded: true,
+              hint: const Text('انتخاب کنید'),
+              decoration: const InputDecoration(labelText: 'کالا'),
               items: _products.map((product) => DropdownMenuItem(value: product,
                 child: Text('${product.code} — ${product.name}', overflow: TextOverflow.ellipsis))).toList(),
-              onChanged: (product) => setState(() {
-                _selectedProduct = product;
-                _priceCtrl.text = product?.sellPrice.toStringAsFixed(0) ?? '';
-              }),
+              onChanged: (product) => setState(() { _selectedProduct = product; }),
             ),
             const SizedBox(height: 10),
             Row(children: [
               Expanded(child: TextField(controller: _quantityCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(labelText: 'تعداد'))),
+                inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))],
+                decoration: const InputDecoration(labelText: 'تعداد', hintText: 'عدد وارد کنید'))),
               const SizedBox(width: 10),
-              Expanded(child: TextField(controller: _priceCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(labelText: 'قیمت واحد (ریال)'))),
+              Expanded(child: InputDecorator(
+                decoration: const InputDecoration(labelText: 'قیمت واحد (ریال)'),
+                child: Text(_selectedProduct == null ? '—' : NumberFormatHelper.integer(_selectedProduct!.sellPrice),
+                  textAlign: TextAlign.end, style: const TextStyle(fontWeight: FontWeight.w600)),
+              )),
             ]),
             const SizedBox(height: 10),
             OutlinedButton.icon(onPressed: _addLine, icon: const Icon(Icons.add_shopping_cart), label: const Text('افزودن به فاکتور')),
@@ -238,8 +267,9 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
               ));
             }),
             const SizedBox(height: 12),
-            TextField(controller: _discountCtrl, keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: const InputDecoration(labelText: 'تخفیف کل (ریال)', helperText: 'در صورت نداشتن تخفیف، صفر بماند')),
+            TextField(controller: _discountCtrl, keyboardType: TextInputType.number,
+              inputFormatters: [_ThousandsSeparatorInputFormatter()],
+              decoration: const InputDecoration(labelText: 'تخفیف کل (ریال)', hintText: 'مبلغ را وارد کنید', helperText: 'پس از جمع اقلام از مبلغ نهایی کسر می‌شود')),
             const SizedBox(height: 10),
             TextField(controller: _notesCtrl, maxLines: 2, decoration: const InputDecoration(labelText: 'توضیحات (اختیاری)')),
             const SizedBox(height: 16),
@@ -389,6 +419,16 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
           ],
         ),
     );
+  }
+}
+
+class _ThousandsSeparatorInputFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(TextEditingValue oldValue, TextEditingValue newValue) {
+    final digits = newValue.text.replaceAll(RegExp(r'[^0-9]'), '');
+    if (digits.isEmpty) return const TextEditingValue(text: '');
+    final grouped = digits.replaceAllMapped(RegExp(r'([0-9])(?=([0-9]{3})+$)'), (m) => '${m[1]},');
+    return TextEditingValue(text: grouped, selection: TextSelection.collapsed(offset: grouped.length));
   }
 }
 
