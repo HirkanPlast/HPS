@@ -6,7 +6,7 @@ class NumberFormatHelper {
     final sign = parts.first.startsWith('-') ? '-' : '';
     final digits = sign.isEmpty ? parts.first : parts.first.substring(1);
     final grouped = digits.replaceAllMapped(
-      RegExp(r'(\\d)(?=(\\d{3})+$)'),
+      RegExp(r'([0-9])(?=([0-9]{3})+$)'),
       (match) => '${match[1]},',
     );
     return '$sign$grouped${parts.length > 1 ? '.${parts[1]}' : ''}';
