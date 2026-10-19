@@ -1,7 +1,7 @@
 class AppConstants {
   static const String appName = 'فروشگاه هیرکان پلاست';
   static const String appNameEn = 'HPS';
-  static const String version = '1.0.1';
+  static const String version = '1.0.3';
 
   static const List<String> transactionTypes = [
     'ورود',
