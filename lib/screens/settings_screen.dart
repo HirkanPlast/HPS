@@ -238,6 +238,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await DatabaseHelper.instance.importOperationalData(
         transactions: transactions,
         expenses: expenses,
+        resetInitialStock: true,
       );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
