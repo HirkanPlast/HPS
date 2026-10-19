@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../services/backup_service.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import 'dart:typed_data';
@@ -88,34 +90,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
 
-  /// Import the ledger CSV exported from the user's accounting sheet.
-  /// Product records are kept; only transactions and expenses are replaced.
-  Future<void> _importLedgerCsv(List<List<String>> rows, List<String> headers) async {
-    final transactions = <Map<String, dynamic>>[];
-    final expenses = <Map<String, dynamic>>[];
-    var productCodes = (await DatabaseHelper.instance.getAllProducts(activeOnly: false))
-        .map((p) => p.code).toSet();
-    if (productCodes.isEmpty) {
-      final seedJson = await rootBundle.loadString('assets/seed_products.json');
-      final seedRows = jsonDecode(seedJson) as List<dynamic>;
-      await DatabaseHelper.instance.seedProducts(
-        seedRows.map((item) => Map<String, dynamic>.from(item as Map)).toList(),
-      );
-      productCodes = (await DatabaseHelper.instance.getAllProducts(activeOnly: false))
-          .map((p) => p.code).toSet();
-    }
-    final now = DateTime.now().toIso8601String();
-    var salesCount = 0;
-    var purchasesCount = 0;
-
-    for (final values in rows.skip(1)) {
-      final row = <String, String>{};
-      for (var i = 0; i < headers.length; i++) {
-        row[headers[i]] = i < values.length ? values[i].trim() : '';
-      }
-      final kind = (row['type'] ?? '').trim();
-      final date = (row['date'] ?? '').trim();
-      if (!RegExp(r'^\d{4}/\d{2}/\d{2}
+  /// Import a ledger CSV while preserving the product catalogue.
+  Future<void> _importLedgerCsv() async {
     try {
       final picked = await FilePicker.platform.pickFiles(
         type: FileType.custom,
@@ -132,149 +108,127 @@ class _SettingsScreenState extends State<SettingsScreen> {
       if (rows.length < 2) throw Exception('فایل خالی است');
 
       final headers = rows.first.map((v) => v.trim().toLowerCase()).toList();
-      if (headers.contains('rowid') && headers.contains('totalrial') &&
-          headers.contains('productcode') && headers.contains('unitpricerial')) {
-        await _importLedgerCsv(rows, headers);
-        return;
-      }
-      final required = ['type', 'code', 'name', 'category', 'unit',
-        'initial_stock', 'min_stock', 'purchase_price', 'sale_price'];
+      final required = ['type', 'date'];
       if (!required.every(headers.contains)) {
-        throw Exception('سرستون‌های فایل با قالب کامل کالاها سازگار نیست');
+        throw Exception('سرستون‌های فایل دفتر حسابداری قابل شناسایی نیست');
       }
 
-      final products = <Map<String, dynamic>>[];
+      final products = await DatabaseHelper.instance.getAllProducts(activeOnly: false);
+      var productCodes = products.map((p) => p.code).toSet();
+      if (productCodes.isEmpty) {
+        final seedJson = await rootBundle.loadString('assets/seed_products.json');
+        final seedRows = jsonDecode(seedJson) as List<dynamic>;
+        await DatabaseHelper.instance.seedProducts(
+          seedRows.map((item) => Map<String, dynamic>.from(item as Map)).toList(),
+        );
+        productCodes = (await DatabaseHelper.instance.getAllProducts(activeOnly: false))
+            .map((p) => p.code).toSet();
+      }
+
       final transactions = <Map<String, dynamic>>[];
-      final productCodes = <String>{};
-      final transactionIds = <String>{};
+      final expenses = <Map<String, dynamic>>[];
       final now = DateTime.now().toIso8601String();
+      String value(Map<String, String> row, List<String> keys) {
+        for (final key in keys) {
+          final v = row[key];
+          if (v != null && v.trim().isNotEmpty) return v.trim();
+        }
+        return '';
+      }
+      double number(String input) =>
+          double.tryParse(input.replaceAll(',', '').replaceAll(' ', '')) ?? 0;
 
       for (final values in rows.skip(1)) {
-        if (values.isEmpty) continue;
-        final kind = values[0].trim().toLowerCase();
-        if (kind == 'product') {
-          final row = <String, String>{};
-          for (var i = 0; i < headers.length; i++) {
-            row[headers[i]] = i < values.length ? values[i].trim() : '';
-          }
-          final code = row['code'] ?? '';
-          final name = row['name'] ?? '';
-          if (code.isEmpty || name.isEmpty) {
-            throw Exception('ردیف کالا بدون کد یا نام پیدا شد');
-          }
-          if (!productCodes.add(code)) {
-            throw Exception('کد کالای تکراری در فایل: $code');
-          }
-          products.add({
-            'code': code,
-            'name': name,
-            'category': row['category'] ?? '',
-            'unit': (row['unit'] ?? '').isEmpty ? 'تعدادی' : row['unit'],
-            'initial_stock': _csvNumber(row, 'initial_stock'),
-            'min_stock': _csvNumber(row, 'min_stock'),
-            'buy_price': _csvNumber(row, 'purchase_price'),
-            'sell_price': _csvNumber(row, 'sale_price'),
-            'is_active': 1,
-            'notes': (row['notes'] ?? '').isEmpty ? null : row['notes'],
-          });
-        } else if (kind == 'transaction') {
-          // Compact layout: transaction,source_id,,,Shamsi_date,type,quantity,unit_price,notes,product_code
-          if (values.length < 10) {
-            throw Exception('ردیف تراکنش ناقص است: ${values.join(',')}');
-          }
-          final sourceId = values[1].trim();
-          final date = values[4].trim();
-          final type = values[5].trim();
-          final quantityText = values[6].trim();
-          final priceText = values[7].trim();
-          final notes = values[8].trim();
-          final productCode = values[9].trim();
-          if (sourceId.isEmpty || date.isEmpty || type.isEmpty ||
-              quantityText.isEmpty || priceText.isEmpty || productCode.isEmpty) {
-            throw Exception('اطلاعات ضروری تراکنش ناقص است: ${values.join(',')}');
-          }
-          if (!RegExp(r'^\d{4}/\d{2}/\d{2}$').hasMatch(date)) {
-            throw Exception('تاریخ شمسی نامعتبر است: $date');
-          }
-          if (!{'ورود', 'فروش', 'برگشت', 'تعدیل'}.contains(type)) {
-            throw Exception('نوع تراکنش ناشناخته است: $type');
-          }
-          final quantity = double.tryParse(quantityText.replaceAll(',', ''));
-          final price = double.tryParse(priceText.replaceAll(',', ''));
-          if (quantity == null || price == null || quantity < 0 || price < 0) {
-            throw Exception('مقدار یا قیمت تراکنش نامعتبر است: ${values.join(',')}');
-          }
-          if (!transactionIds.add(sourceId)) {
-            throw Exception('شناسه تراکنش تکراری در فایل: $sourceId');
-          }
-          transactions.add({
+        final row = <String, String>{};
+        for (var i = 0; i < headers.length; i++) {
+          row[headers[i]] = i < values.length ? values[i].trim() : '';
+        }
+        final kind = value(row, ['type', 'نوع', 'نوع تراکنش']);
+        final date = value(row, ['date', 'تاریخ']);
+        if (date.isEmpty) continue;
+        if (!RegExp(r'^\d{4}/\d{2}/\d{2}$').hasMatch(date)) {
+          throw Exception('تاریخ نامعتبر است: $date');
+        }
+
+        final code = value(row, ['productcode', 'product_code', 'code', 'کد کالا', 'کدکالا']);
+        final qty = number(value(row, ['quantity', 'qty', 'تعداد', 'مقدار']));
+        final unitPrice = number(value(row, ['unitpricerial', 'unit_price', 'unit price', 'قیمت واحد']));
+        final total = number(value(row, ['totalrial', 'total', 'amount', 'مبلغ', 'مبلغ کل']));
+        final name = value(row, ['title', 'name', 'شرح', 'عنوان', 'دسته', 'category']) ;
+        final notes = value(row, ['notes', 'توضیحات', 'شرح']);
+
+        if (kind.toLowerCase() == 'expense' || kind == 'هزینه') {
+          expenses.add({
             'date': date,
-            'type': type,
-            'product_code': productCode,
-            'quantity': quantity,
-            'unit_price': price,
+            'category': value(row, ['category', 'دسته', 'دسته‌بندی']).isEmpty ? 'سایر' : value(row, ['category', 'دسته', 'دسته‌بندی']),
+            'title': name.isEmpty ? 'هزینه واردشده' : name,
+            'amount': total != 0 ? total : unitPrice,
             'notes': notes.isEmpty ? null : notes,
-            'created_by': null,
             'created_at': now,
           });
+          continue;
         }
+
+        String type;
+        if (kind.toLowerCase() == 'sale' || kind == 'فروش') {
+          type = 'فروش';
+        } else if (kind.toLowerCase() == 'purchase' || kind == 'خرید' || kind == 'ورود') {
+          type = 'ورود';
+        } else if (kind == 'برگشت' || kind.toLowerCase() == 'return') {
+          type = 'برگشت';
+        } else if (kind == 'تعدیل' || kind.toLowerCase() == 'adjustment') {
+          type = 'تعدیل';
+        } else {
+          continue;
+        }
+        if (code.isEmpty || !productCodes.contains(code)) {
+          throw Exception('کد کالای موجود در برنامه پیدا نشد: ${code.isEmpty ? '(خالی)' : code}');
+        }
+        transactions.add({
+          'date': date,
+          'type': type,
+          'product_code': code,
+          'quantity': qty,
+          'unit_price': unitPrice != 0 ? unitPrice : (qty == 0 ? 0 : total / qty),
+          'notes': notes.isEmpty ? null : notes,
+          'created_by': null,
+          'created_at': now,
+        });
       }
 
-      if (products.isEmpty) throw Exception('هیچ کالایی در فایل پیدا نشد');
-      if (transactions.isEmpty) throw Exception('هیچ تراکنشی در فایل پیدا نشد');
-      final missingCodes = transactions
-          .map((t) => t['product_code'] as String)
-          .where((code) => !productCodes.contains(code))
-          .toSet();
-      if (missingCodes.isNotEmpty) {
-        throw Exception('کد کالا برای این تراکنش‌ها در فایل وجود ندارد: ${missingCodes.join(', ')}');
+      if (transactions.isEmpty && expenses.isEmpty) {
+        throw Exception('هیچ خرید، فروشی یا هزینه قابل واردکردن پیدا نشد');
       }
-
       final confirm = await showDialog<bool>(
         context: context,
         builder: (dialogContext) => AlertDialog(
-          title: const Text('جایگزینی کامل اطلاعات'),
+          title: const Text('واردکردن دفتر حسابداری'),
           content: Text(
-            '${products.length} کالا و ${transactions.length} تراکنش شناسایی شد.\n\n'
-            'با تأیید، تمام کالاها، تراکنش‌ها و هزینه‌های فعلی برنامه پاک می‌شوند و فقط اطلاعات همین فایل باقی می‌ماند. '
-            'این فایل ردیف هزینه ندارد؛ بنابراین هزینه‌های قبلی نیز حذف می‌شوند.\n\n'
-            'تاریخ‌های شمسی و مقادیر اعشاری حفظ می‌شوند. ادامه می‌دهید؟',
+            '${transactions.length} تراکنش و ${expenses.length} هزینه پیدا شد. '
+            'تراکنش‌ها و هزینه‌های فعلی جایگزین می‌شوند؛ فهرست کالاها حفظ می‌شود. ادامه می‌دهید؟',
           ),
           actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, false),
-              child: const Text('انصراف'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext, true),
-              child: const Text('پاک‌کردن و جایگزینی'),
-            ),
+            TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('انصراف')),
+            TextButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('ادامه')),
           ],
         ),
       );
       if (confirm != true) return;
 
       setState(() => _busy = true);
-      await DatabaseHelper.instance.importAllData({
-        'products': products,
-        'transactions': transactions,
-        'expenses': <Map<String, dynamic>>[],
-      }, clearFirst: true);
-
+      await DatabaseHelper.instance.importOperationalData(
+        transactions: transactions,
+        expenses: expenses,
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'جایگزینی موفق بود: ${products.length} کالا و ${transactions.length} تراکنش وارد شد؛ داده‌های قبلی و هزینه‌ها پاک شدند.',
-            ),
-            duration: const Duration(seconds: 8),
-          ),
+          SnackBar(content: Text('وارد شد: ${transactions.length} تراکنش و ${expenses.length} هزینه')),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('خطا در وارد کردن فایل: $e')),
+          SnackBar(content: Text('خطا در واردکردن فایل: $e')),
         );
       }
     } finally {
