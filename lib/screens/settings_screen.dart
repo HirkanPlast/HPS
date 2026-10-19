@@ -1,11 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:share_plus/share_plus.dart';
+import 'dart:typed_data';
 import '../utils/constants.dart';
-import '../services/telegram_service.dart';
-import '../services/backup_service.dart';
 import '../database/database_helper.dart';
 import '../models/product.dart';
 import '../app.dart';
@@ -20,93 +19,29 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  final _tokenCtrl = TextEditingController();
-  final _chatCtrl = TextEditingController();
-  bool _autoBackup = true;
-  String? _lastBackup;
-  bool _saving = false;
   bool _busy = false;
 
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  Future<void> _load() async {
-    final token = await TelegramService.getBotToken();
-    final chat = await TelegramService.getChatId();
-    final auto = await BackupService.isAutoBackupEnabled();
-    final last = await BackupService.getLastBackupTime();
-    setState(() {
-      _tokenCtrl.text = token ?? '';
-      _chatCtrl.text = chat ?? '';
-      _autoBackup = auto;
-      _lastBackup = last;
-    });
-  }
-
-  Future<void> _saveTelegram() async {
-    setState(() => _saving = true);
-    await TelegramService.saveCredentials(_tokenCtrl.text, _chatCtrl.text);
-    setState(() => _saving = false);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تنظیمات تلگرام ذخیره شد')),
-      );
-    }
-  }
-
-  Future<void> _testTelegram() async {
-    final ok = await TelegramService.sendMessage(
-      '✅ تست اتصال از اپ فروشگاه هیرکان پلاست\nنسخه ${AppConstants.version}',
-    );
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(ok
-              ? 'پیام تست ارسال شد'
-              : 'خطا در ارسال. توکن و چت‌آیدی را بررسی کنید'),
-        ),
-      );
-    }
-  }
-
-  Future<void> _manualBackup() async {
-    setState(() => _busy = true);
-    final ok = await BackupService.performBackup(force: true);
-    await _load();
-    setState(() => _busy = false);
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(ok ? 'بک‌آپ با موفقیت ارسال شد' : 'خطا در ارسال بک‌آپ')),
-      );
-    }
-  }
-
-  /// Export all app data to a local JSON file (separate from Telegram backup).
-  Future<void> _localBackup() async {
+  /// Share a JSON backup through Android's native share sheet.
+  Future<void> _shareBackup() async {
     setState(() => _busy = true);
     try {
       final jsonStr = jsonEncode(await DatabaseHelper.instance.exportAllData());
-      final bytes = utf8.encode(jsonStr);
       final stamp = DateTime.now().toIso8601String().replaceAll(':', '-');
-      final path = await FilePicker.platform.saveFile(
-        dialogTitle: 'ذخیره نسخه پشتیبان HPLeila',
-        fileName: 'hpleila_backup_$stamp.json',
-        type: FileType.custom,
-        allowedExtensions: ['json'],
-        bytes: bytes,
+      await Share.shareXFiles(
+        [
+          XFile.fromData(
+            Uint8List.fromList(utf8.encode(jsonStr)),
+            mimeType: 'application/json',
+            name: 'hpleila_backup_$stamp.json',
+          ),
+        ],
+        text: 'نسخه پشتیبان اطلاعات HPLeila',
+        subject: 'نسخه پشتیبان HPLeila',
       );
-      if (mounted && path != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('فایل پشتیبان ذخیره شد')),
-        );
-      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('خطا در تهیه نسخه پشتیبان: $e')),
+          SnackBar(content: Text('خطا در آماده‌سازی نسخه پشتیبان: $e')),
         );
       }
     } finally {
@@ -445,63 +380,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Telegram
-                Text('بک‌آپ تلگرام', style: Theme.of(context).textTheme.titleMedium),
+                Text('نسخه پشتیبان', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 8),
-                TextField(
-                  controller: _tokenCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'توکن ربات تلگرام',
-                    hintText: '123456:ABC-DEF...',
-                  ),
-                  obscureText: true,
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: _chatCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'شناسه چت (Chat ID)',
-                    hintText: '-1001234567890 یا عددی',
-                  ),
-                  keyboardType: TextInputType.number,
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: _saving ? null : _saveTelegram,
-                        child: const Text('ذخیره'),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: _testTelegram,
-                        child: const Text('تست ارسال'),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                SwitchListTile(
-                  title: const Text('بک‌آپ روزانه خودکار'),
-                  subtitle: Text(
-                    _lastBackup != null
-                        ? 'آخرین بک‌آپ: $_lastBackup'
-                        : 'هنوز بک‌آپی گرفته نشده',
-                  ),
-                  value: _autoBackup,
-                  onChanged: (v) async {
-                    await BackupService.setAutoBackup(v);
-                    setState(() => _autoBackup = v);
-                  },
+                const Text(
+                  'فایل پشتیبان را با منوی اشتراک‌گذاری اندروید از طریق تلگرام، واتساپ، ایمیل یا برنامه‌های دیگر ارسال کنید.',
                 ),
                 const SizedBox(height: 8),
                 ElevatedButton.icon(
-                  onPressed: _manualBackup,
-                  icon: const Icon(Icons.backup),
-                  label: const Text('بک‌آپ دستی الان'),
+                  onPressed: _busy ? null : _shareBackup,
+                  icon: const Icon(Icons.share),
+                  label: const Text('اشتراک‌گذاری نسخه پشتیبان'),
                 ),
                 const SizedBox(height: 24),
 
@@ -513,12 +401,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: const Text('جایگزینی کامل اطلاعات از فایل CSV/TXT'),
                   subtitle: const Text('پاک‌کردن اطلاعات فعلی و واردکردن کالاها و تراکنش‌های فایل'),
                   onTap: _importLedgerCsv,
-                ),
-                ListTile(
-                  leading: const Icon(Icons.save_alt),
-                  title: const Text('تهیه نسخه پشتیبان در گوشی'),
-                  subtitle: const Text('ذخیره کالاها، تراکنش‌ها و هزینه‌ها در فایل JSON'),
-                  onTap: _localBackup,
                 ),
                 ListTile(
                   leading: const Icon(Icons.restore),
