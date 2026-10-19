@@ -258,7 +258,7 @@ class DatabaseHelper {
     return db.transaction<int>((txn) async {
       final now = DateTime.now().toIso8601String();
       final nextId = Sqflite.firstIntValue(await txn.rawQuery('SELECT COALESCE(MAX(id), 0) + 1 FROM invoices')) ?? 1;
-      final invoiceNumber = 'HP-@@{date.replaceAll('/', '')}-@@{nextId.toString().padLeft(4, '0')}';
+      final invoiceNumber = 'HP-${date.replaceAll('/', '')}-${nextId.toString().padLeft(4, '0')}';
       final invoiceId = await txn.insert('invoices', {
         'invoice_number': invoiceNumber,
         'date': date,
