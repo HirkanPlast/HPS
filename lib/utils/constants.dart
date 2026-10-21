@@ -1,11 +1,10 @@
 class AppConstants {
   static const String appName = 'HPLeila';
   static const String appNameEn = 'HPLeila';
-  static const String version = '1.5.2';
+  static const String version = '1.9.2';
 
   static const List<String> transactionTypes = [
     'ورود',
-    'فروش',
     'برگشت',
     'تعدیل',
   ];

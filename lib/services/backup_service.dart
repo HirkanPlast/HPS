@@ -40,6 +40,7 @@ class BackupService {
 📊 تعداد کالا: ${(data['products'] as List).length}
 📝 تعداد تراکنش: ${(data['transactions'] as List).length}
 💰 تعداد هزینه: ${(data['expenses'] as List).length}
+🧾 تعداد فاکتور: ${((data['invoices'] as List?) ?? []).length}
 نسخه اپ: ${AppConstants.version}
 ''';
 

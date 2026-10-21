@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/home_navigation.dart';
 import '../database/database_helper.dart';
 import '../models/product.dart';
 
@@ -57,6 +58,7 @@ class _InventoryScreenState extends State<InventoryScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        leading: IconButton(tooltip: 'منوی اصلی', icon: const Icon(Icons.menu), onPressed: openHomeDrawer),
         title: const Text('موجودی انبار'),
         actions: [
           PopupMenuButton<String>(

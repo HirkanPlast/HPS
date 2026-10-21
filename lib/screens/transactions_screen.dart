@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
+import '../utils/home_navigation.dart';
 import '../database/database_helper.dart';
 import '../models/transaction.dart';
 import '../models/product.dart';
 import '../utils/persian_date.dart';
 import '../utils/constants.dart';
 import '../utils/number_format.dart';
+import 'invoice_screen.dart';
 
 class TransactionsScreen extends StatefulWidget {
   const TransactionsScreen({super.key});
@@ -38,7 +40,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     final products = await DatabaseHelper.instance.getAllProducts();
     if (!mounted) return;
 
-    String type = 'فروش';
+    String type = 'ورود';
     Product? selectedProduct;
     final qtyCtrl = TextEditingController();
     final priceCtrl = TextEditingController();
@@ -206,7 +208,19 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('تراکنش‌ها')),
+      appBar: AppBar(
+        leading: IconButton(tooltip: 'منوی اصلی', icon: const Icon(Icons.menu), onPressed: openHomeDrawer),
+        title: const Text('تراکنش‌ها'),
+        actions: [
+          IconButton(
+            tooltip: 'فاکتورهای فروش',
+            icon: const Icon(Icons.receipt_long),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const InvoicesScreen()),
+            ),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showAddDialog,
         icon: const Icon(Icons.add),
