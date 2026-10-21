@@ -31,6 +31,17 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
     } finally { if (mounted) setState(() => _busy = false); }
   }
 
+  Future<void> _importLedger() async {
+    final importLedger = widget.onImportLedger;
+    if (importLedger == null || _busy) return;
+    setState(() => _busy = true);
+    try {
+      await importLedger();
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _restore() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -93,7 +104,7 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
         if (widget.onImportLedger != null) ...[
           const SizedBox(height: 12),
           OutlinedButton.icon(
-            onPressed: widget.onImportLedger,
+            onPressed: _importLedger,
             icon: const Icon(Icons.file_upload_outlined),
             label: const Text('ورود دفتر حسابداری CSV/TXT'),
           ),
