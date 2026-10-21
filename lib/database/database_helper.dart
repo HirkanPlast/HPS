@@ -152,9 +152,26 @@ class DatabaseHelper {
     );
   }
 
-  Future<int> deleteProduct(int id) async {
+  Future<bool> deleteOrArchiveProduct(int id) async {
     final db = await database;
-    return await db.delete('products', where: 'id = ?', whereArgs: [id]);
+    return db.transaction<bool>((txn) async {
+      final rows = await txn.query('products', where: 'id = ?', whereArgs: [id], limit: 1);
+      if (rows.isEmpty) return false;
+      final code = rows.first['code'] as String;
+      final ledger = Sqflite.firstIntValue(await txn.rawQuery(
+        'SELECT COUNT(*) FROM transactions WHERE product_code = ?', [code],
+      )) ?? 0;
+      final invoiceItems = Sqflite.firstIntValue(await txn.rawQuery(
+        'SELECT COUNT(*) FROM invoice_items WHERE product_code = ?', [code],
+      )) ?? 0;
+      final initialStock = (rows.first['initial_stock'] as num?)?.toDouble() ?? 0;
+      if (ledger > 0 || invoiceItems > 0 || initialStock != 0) {
+        await txn.update('products', {'is_active': 0}, where: 'id = ?', whereArgs: [id]);
+        return true;
+      }
+      await txn.delete('products', where: 'id = ?', whereArgs: [id]);
+      return false;
+    });
   }
 
   // ========== TRANSACTIONS ==========
@@ -206,6 +223,10 @@ class DatabaseHelper {
 
   Future<int> deleteTransaction(int id) async {
     final db = await database;
+    final rows = await db.query('transactions', columns: ['created_by'], where: 'id = ?', whereArgs: [id], limit: 1);
+    if (rows.isNotEmpty && ['invoice', 'invoice_return'].contains(rows.first['created_by'])) {
+      throw StateError('این ردیف متعلق به فاکتور است؛ حذف مستقیم آن مجاز نیست.');
+    }
     return await db.delete('transactions', where: 'id = ?', whereArgs: [id]);
   }
 
@@ -288,6 +309,67 @@ class DatabaseHelper {
         });
       }
       return invoiceId;
+    });
+  }
+
+  /// Whether a full return has already been recorded for this invoice.
+  Future<bool> hasInvoiceReturn(int invoiceId) async {
+    final invoice = await getInvoice(invoiceId);
+    if (invoice == null) return false;
+    final db = await database;
+    final rows = await db.query(
+      'transactions',
+      columns: ['id'],
+      where: "created_by = ? AND notes = ?",
+      whereArgs: ['invoice_return', 'برگشت کامل فاکتور ${invoice['invoice_number']}'],
+      limit: 1,
+    );
+    return rows.isNotEmpty;
+  }
+
+  /// Record a full return without deleting or changing the original invoice.
+  /// The operation is atomic and can only be recorded once per invoice.
+  Future<void> returnInvoice(int invoiceId, {required String date}) async {
+    final db = await database;
+    await db.transaction((txn) async {
+      final invoiceRows = await txn.query(
+        'invoices', where: 'id = ?', whereArgs: [invoiceId], limit: 1,
+      );
+      if (invoiceRows.isEmpty) throw StateError('فاکتور پیدا نشد.');
+      final invoice = invoiceRows.first;
+      final invoiceNumber = invoice['invoice_number'] as String;
+      final returnNote = 'برگشت کامل فاکتور $invoiceNumber';
+      final existing = await txn.query(
+        'transactions',
+        columns: ['id'],
+        where: "created_by = ? AND notes = ?",
+        whereArgs: ['invoice_return', returnNote],
+        limit: 1,
+      );
+      if (existing.isNotEmpty) throw StateError('برای این فاکتور قبلاً برگشت کامل ثبت شده است.');
+      final items = await txn.query(
+        'invoice_items', where: 'invoice_id = ?', whereArgs: [invoiceId],
+        orderBy: 'id ASC',
+      );
+      if (items.isEmpty) throw StateError('اقلام فاکتور پیدا نشدند.');
+      final subtotal = (invoice['subtotal'] as num).toDouble();
+      final discount = (invoice['discount'] as num).toDouble();
+      final now = DateTime.now().toIso8601String();
+      for (final item in items) {
+        final quantity = (item['quantity'] as num).toDouble();
+        final lineTotal = (item['line_total'] as num).toDouble();
+        final allocatedDiscount = subtotal == 0 ? 0.0 : discount * lineTotal / subtotal;
+        await txn.insert('transactions', {
+          'date': date,
+          'type': 'برگشت',
+          'product_code': item['product_code'],
+          'quantity': quantity,
+          'unit_price': quantity == 0 ? 0.0 : (lineTotal - allocatedDiscount) / quantity,
+          'notes': returnNote,
+          'created_by': 'invoice_return',
+          'created_at': now,
+        });
+      }
     });
   }
 
@@ -398,26 +480,26 @@ class DatabaseHelper {
 
     // Sales today
     final salesToday = await db.rawQuery('''
-      SELECT COALESCE(SUM(quantity * unit_price), 0) as total,
-             COALESCE(SUM(quantity), 0) as qty
+      SELECT COALESCE(SUM(CASE WHEN type = 'فروش' THEN quantity * unit_price WHEN type = 'برگشت' AND created_by = 'invoice_return' THEN -quantity * unit_price ELSE 0 END), 0) as total,
+             COALESCE(SUM(CASE WHEN type = 'فروش' THEN quantity WHEN type = 'برگشت' AND created_by = 'invoice_return' THEN -quantity ELSE 0 END), 0) as qty
       FROM transactions
-      WHERE type = 'فروش' AND date = ?
+      WHERE (type = 'فروش' OR (type = 'برگشت' AND created_by = 'invoice_return')) AND date = ?
     ''', [today]);
 
     // Sales this month
     final salesMonth = await db.rawQuery('''
-      SELECT COALESCE(SUM(quantity * unit_price), 0) as total,
-             COALESCE(SUM(quantity), 0) as qty
+      SELECT COALESCE(SUM(CASE WHEN type = 'فروش' THEN quantity * unit_price WHEN type = 'برگشت' AND created_by = 'invoice_return' THEN -quantity * unit_price ELSE 0 END), 0) as total,
+             COALESCE(SUM(CASE WHEN type = 'فروش' THEN quantity WHEN type = 'برگشت' AND created_by = 'invoice_return' THEN -quantity ELSE 0 END), 0) as qty
       FROM transactions
-      WHERE type = 'فروش' AND date >= ?
-    ''', [monthStart]);
+      WHERE (type = 'فروش' OR (type = 'برگشت' AND created_by = 'invoice_return')) AND date >= ? AND date <= ?
+    ''', [monthStart, today]);
 
     // Expenses this month
     final expMonth = await db.rawQuery('''
       SELECT COALESCE(SUM(amount), 0) as total
       FROM expenses
-      WHERE date >= ?
-    ''', [monthStart]);
+      WHERE date >= ? AND date <= ?
+    ''', [monthStart, today]);
 
     // Inventory summary
     final inventory = await getInventory();
@@ -439,11 +521,11 @@ class DatabaseHelper {
     // COGS approximation this month (using current buy price)
     // Better would be FIFO, but for v1 we use average
     final cogsMonth = await db.rawQuery('''
-      SELECT COALESCE(SUM(t.quantity * p.buy_price), 0) as total
+      SELECT COALESCE(SUM(CASE WHEN t.type = 'فروش' THEN t.quantity * p.buy_price WHEN t.type = 'برگشت' AND t.created_by = 'invoice_return' THEN -t.quantity * p.buy_price ELSE 0 END), 0) as total
       FROM transactions t
       JOIN products p ON t.product_code = p.code
-      WHERE t.type = 'فروش' AND t.date >= ?
-    ''', [monthStart]);
+      WHERE (t.type = 'فروش' OR (t.type = 'برگشت' AND t.created_by = 'invoice_return')) AND t.date >= ? AND t.date <= ?
+    ''', [monthStart, today]);
 
     final salesTotal = (salesMonth.first['total'] as num).toDouble();
     final cogs = (cogsMonth.first['total'] as num).toDouble();
@@ -485,6 +567,8 @@ class DatabaseHelper {
           throw Exception('کد کالای ناموجود: $code');
         }
       }
+      await txn.delete('invoice_items');
+      await txn.delete('invoices');
       await txn.delete('transactions');
       await txn.delete('expenses');
       if (resetInitialStock) {
