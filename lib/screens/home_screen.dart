@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../utils/home_navigation.dart';
 import 'invoice_screen.dart';
@@ -123,6 +124,33 @@ class _HomeScreenState extends State<HomeScreen> {
               onTap: () {
                 Navigator.pop(context);
                 Navigator.of(context).push(MaterialPageRoute(builder: (_) => const HelpScreen()));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.exit_to_app),
+              title: const Text('خروج از برنامه'),
+              onTap: () async {
+                Navigator.pop(context);
+                final shouldExit = await showDialog<bool>(
+                  context: context,
+                  builder: (dialogContext) => AlertDialog(
+                    title: const Text('خروج از برنامه'),
+                    content: const Text('آیا می‌خواهید از برنامه خارج شوید؟'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(dialogContext, false),
+                        child: const Text('انصراف'),
+                      ),
+                      FilledButton(
+                        onPressed: () => Navigator.pop(dialogContext, true),
+                        child: const Text('خروج'),
+                      ),
+                    ],
+                  ),
+                );
+                if (shouldExit == true) {
+                  await SystemNavigator.pop();
+                }
               },
             ),
           ],
