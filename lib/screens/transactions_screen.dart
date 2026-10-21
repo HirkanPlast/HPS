@@ -40,7 +40,7 @@ class _TransactionsScreenState extends State<TransactionsScreen> {
     final products = await DatabaseHelper.instance.getAllProducts();
     if (!mounted) return;
 
-    String type = 'فروش';
+    String type = 'ورود';
     Product? selectedProduct;
     final qtyCtrl = TextEditingController();
     final priceCtrl = TextEditingController();
