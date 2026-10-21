@@ -23,6 +23,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
   double _yearSales = 0;
   double _previousMonthSales = 0;
   double _previousYearSales = 0;
+  double _monthExpenses = 0;
+  double _yearExpenses = 0;
+  double _monthGrossProfit = 0;
+  double _monthNetProfit = 0;
+  double _yearGrossProfit = 0;
+  double _yearNetProfit = 0;
+  double _monthQuantity = 0;
+  double _yearQuantity = 0;
   double _bestDaySales = 0;
   String? _bestDay;
   List<MapEntry<String, double>> _daily = [];
@@ -45,10 +53,20 @@ class _ReportsScreenState extends State<ReportsScreen> {
     try {
       final db = await DatabaseHelper.instance.database;
       final all = await db.rawQuery(
-        "SELECT date, type, quantity, unit_price, created_by FROM transactions WHERE type IN ('فروش','ورود','برگشت') ORDER BY date ASC",
+        "SELECT t.date, t.type, t.quantity, t.unit_price, t.created_by, COALESCE(p.buy_price, 0) AS buy_price FROM transactions t LEFT JOIN products p ON p.code = t.product_code WHERE t.type IN ('فروش','ورود','برگشت') ORDER BY t.date ASC",
       );
       double lifetimeSales = 0, lifetimePurchases = 0, monthSales = 0, yearSales = 0;
       double previousMonthSales = 0, previousYearSales = 0;
+      double monthCogs = 0, yearCogs = 0, monthQuantity = 0, yearQuantity = 0;
+      double monthExpenses = 0, yearExpenses = 0;
+      final expenses = await db.query('expenses', columns: ['date', 'amount']);
+      for (final expense in expenses) {
+        final date = PersianDateHelper.parse(expense['date'] as String);
+        if (date == null) continue;
+        final amount = (expense['amount'] as num).toDouble();
+        if (date.year == _year) yearExpenses += amount;
+        if (date.year == _year && date.month == _month) monthExpenses += amount;
+      }
       final previousMonth = _month == 1 ? 12 : _month - 1;
       final previousMonthYear = _month == 1 ? _year - 1 : _year;
       final dailyMap = <int, double>{};
@@ -68,12 +86,16 @@ class _ReportsScreenState extends State<ReportsScreen> {
           if (parsed != null) {
             if (parsed.year == _year) {
               yearSales += salesAmount;
+              yearQuantity += (type == 'برگشت' ? -1 : 1) * (row['quantity'] as num).toDouble();
+              yearCogs += (type == 'برگشت' ? -1 : 1) * (row['quantity'] as num).toDouble() * (row['buy_price'] as num).toDouble();
               monthlyMap[parsed.month] = (monthlyMap[parsed.month] ?? 0) + salesAmount;
             }
             if (parsed.year == _year - 1) previousYearSales += salesAmount;
             if (parsed.year == previousMonthYear && parsed.month == previousMonth) previousMonthSales += salesAmount;
             if (parsed.year == _year && parsed.month == _month) {
               monthSales += salesAmount;
+              monthQuantity += (type == 'برگشت' ? -1 : 1) * (row['quantity'] as num).toDouble();
+              monthCogs += (type == 'برگشت' ? -1 : 1) * (row['quantity'] as num).toDouble() * (row['buy_price'] as num).toDouble();
               dailyMap[parsed.day] = (dailyMap[parsed.day] ?? 0) + salesAmount;
               final weekday = parsed.toDateTime().weekday;
               weekdayMap[weekday] = (weekdayMap[weekday] ?? 0) + salesAmount;
@@ -105,6 +127,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
         _yearSales = yearSales;
         _previousMonthSales = previousMonthSales;
         _previousYearSales = previousYearSales;
+        _monthExpenses = monthExpenses;
+        _yearExpenses = yearExpenses;
+        _monthGrossProfit = monthSales - monthCogs;
+        _monthNetProfit = monthSales - monthCogs - monthExpenses;
+        _yearGrossProfit = yearSales - yearCogs;
+        _yearNetProfit = yearSales - yearCogs - yearExpenses;
+        _monthQuantity = monthQuantity;
+        _yearQuantity = yearQuantity;
         _bestDay = salesByDay.isEmpty ? null : salesByDay.first.key;
         _bestDaySales = salesByDay.isEmpty ? 0 : salesByDay.first.value;
         _daily = sortedDays.map((e) => MapEntry('${e.key}', e.value)).toList();
@@ -164,8 +194,14 @@ class _ReportsScreenState extends State<ReportsScreen> {
           const SizedBox(height: 16),
           _MetricCard(title: 'مجموع فروش ثبت‌شده', value: _lifetimeSales),
           _MetricCard(title: 'مجموع خرید ثبت‌شده', value: _lifetimePurchases),
-          _MetricCard(title: 'فروش سال $_year', value: _yearSales, subtitle: 'سال قبل: ${NumberFormatHelper.integer(_previousYearSales)} ریال'),
-          _MetricCard(title: 'فروش ${PersianDateHelper.monthName(_month)} $_year', value: _monthSales, subtitle: 'ماه قبل: ${NumberFormatHelper.integer(_previousMonthSales)} ریال'),
+          _MetricCard(title: 'فروش سال $_year', value: _yearSales, subtitle: 'سال قبل: ${NumberFormatHelper.integer(_previousYearSales)} ریال | مقدار خالص: ${NumberFormatHelper.integer(_yearQuantity)}'),
+          _MetricCard(title: 'فروش ${PersianDateHelper.monthName(_month)} $_year', value: _monthSales, subtitle: 'ماه قبل: ${NumberFormatHelper.integer(_previousMonthSales)} ریال | مقدار خالص: ${NumberFormatHelper.integer(_monthQuantity)}'),
+          _MetricCard(title: 'هزینه‌های سال $_year', value: _yearExpenses),
+          _MetricCard(title: 'هزینه‌های ${PersianDateHelper.monthName(_month)}', value: _monthExpenses),
+          _MetricCard(title: 'سود ناخالص سال $_year (تقریبی)', value: _yearGrossProfit),
+          _MetricCard(title: 'سود خالص سال $_year (تقریبی)', value: _yearNetProfit),
+          _MetricCard(title: 'سود ناخالص ماه (تقریبی)', value: _monthGrossProfit),
+          _MetricCard(title: 'سود خالص ماه (تقریبی)', value: _monthNetProfit),
           _MetricCard(title: 'پرفروش‌ترین روز ثبت‌شده', value: _bestDaySales, subtitle: _bestDay ?? 'هنوز فروشی ثبت نشده است'),
           const SizedBox(height: 12),
           _BarsCard(title: 'فروش ماهانه در سال $_year', entries: _monthly),
@@ -176,7 +212,7 @@ class _ReportsScreenState extends State<ReportsScreen> {
             const SizedBox(height: 8),
             Text(_selectedMonthIsFuture ? 'ماه انتخاب‌شده هنوز نرسیده است.' : (_noSalesDays.isEmpty ? 'برای این ماه روز بدون فروش ثبت‌شده‌ای وجود ندارد.' : _noSalesDays.join('، '))),
           ]))),
-          const Padding(padding: EdgeInsets.only(top: 8), child: Text('این گزارش بر اساس تراکنش‌های ثبت‌شده محاسبه می‌شود. مجموع خرید از تراکنش‌های «ورود» و مجموع فروش از تراکنش‌های «فروش» به دست می‌آید. این ارقام به‌تنهایی گزارش سود حسابداری یا بهای تمام‌شده دقیق نیستند.')),
+          const Padding(padding: EdgeInsets.only(top: 8), child: Text('این گزارش از تراکنش‌ها و هزینه‌های ثبت‌شده همین فروشگاه محاسبه می‌شود. سود ناخالص با قیمت خرید فعلی کالاها تخمین زده می‌شود، نه روش FIFO؛ بنابراین ارقام سود تقریبی‌اند و جایگزین حسابداری رسمی نیستند.')),
         ],
       );
   }
