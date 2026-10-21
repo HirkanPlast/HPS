@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'reports_screen.dart';
 import '../utils/home_navigation.dart';
 import '../database/database_helper.dart';
 import '../utils/persian_date.dart';
@@ -56,6 +57,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
         leading: IconButton(tooltip: 'منوی اصلی', icon: const Icon(Icons.menu), onPressed: openHomeDrawer),
         title: const Text('در یک نگاه'),
         actions: [
+          IconButton(
+            tooltip: 'آمار و گزارش‌ها',
+            icon: const Icon(Icons.bar_chart),
+            onPressed: () => Navigator.of(context).push<void>(
+              MaterialPageRoute(builder: (_) => const ReportsScreen()),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: _load,
