@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -150,6 +151,80 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
       _loading = false;
     });
   }
+  String _normalizeProductSearch(String value) => value
+      .trim()
+      .toLowerCase()
+      .replaceAll('ي', 'ی')
+      .replaceAll('ك', 'ک')
+      .replaceAll('ۀ', 'ه')
+      .replaceAll('ة', 'ه');
+
+  Future<void> _chooseProduct() async {
+    final searchController = TextEditingController();
+    final selected = await showDialog<Product>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          final query = _normalizeProductSearch(searchController.text);
+          final matches = _products.where((product) {
+            final searchable = _normalizeProductSearch('${product.code} ${product.name}');
+            return query.isEmpty || searchable.contains(query);
+          }).toList();
+
+          return AlertDialog(
+            title: const Text('جست‌وجو و انتخاب کالا'),
+            content: SizedBox(
+              width: double.maxFinite,
+              height: 380,
+              child: Column(
+                children: [
+                  TextField(
+                    controller: searchController,
+                    autofocus: true,
+                    onChanged: (_) => setDialogState(() {}),
+                    decoration: const InputDecoration(
+                      hintText: 'نام یا کد کالا را تایپ کنید',
+                      prefixIcon: Icon(Icons.search),
+                      suffixIcon: Icon(Icons.keyboard),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Expanded(
+                    child: matches.isEmpty
+                        ? const Center(child: Text('کالایی با این نام یا کد پیدا نشد'))
+                        : ListView.separated(
+                            itemCount: matches.length,
+                            separatorBuilder: (_, __) => const Divider(height: 1),
+                            itemBuilder: (context, index) {
+                              final product = matches[index];
+                              return ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                title: Text(product.name),
+                                subtitle: Text('${product.code} • ${product.unit}'),
+                                onTap: () => Navigator.of(dialogContext).pop(product),
+                              );
+                            },
+                          ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('انصراف'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+    searchController.dispose();
+    if (selected != null && mounted) {
+      setState(() => _selectedProduct = selected);
+    }
+  }
+
   void _addLine() {
     final product = _selectedProduct;
     final quantity = double.tryParse(_quantityCtrl.text.replaceAll(',', '').trim()) ?? 0;
@@ -232,13 +307,25 @@ class _CreateInvoiceScreenState extends State<CreateInvoiceScreen> {
             const SizedBox(height: 16),
             const Text('افزودن کالا', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
             const SizedBox(height: 10),
-            DropdownButtonFormField<Product>(
-              value: _selectedProduct, isExpanded: true,
-              hint: const Text('انتخاب کنید'),
-              decoration: const InputDecoration(labelText: 'کالا'),
-              items: _products.map((product) => DropdownMenuItem(value: product,
-                child: Text('${product.code} — ${product.name}', overflow: TextOverflow.ellipsis))).toList(),
-              onChanged: (product) => setState(() { _selectedProduct = product; }),
+            InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: _chooseProduct,
+              child: InputDecorator(
+                decoration: InputDecoration(
+                  labelText: 'کالا',
+                  hintText: 'برای جست‌وجو و انتخاب کالا بزنید',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: const Icon(Icons.arrow_drop_down),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: Text(
+                  _selectedProduct == null
+                      ? 'انتخاب کنید'
+                      : '${_selectedProduct!.code} — ${_selectedProduct!.name}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ),
             const SizedBox(height: 10),
             Row(children: [
@@ -302,17 +389,61 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
   List<Map<String, dynamic>> _items = [];
   bool _loading = true;
   bool _working = false;
+  bool _returned = false;
   @override
   void initState() { super.initState(); _load(); }
   Future<void> _load() async {
     final invoice = await DatabaseHelper.instance.getInvoice(widget.invoiceId);
     final items = await DatabaseHelper.instance.getInvoiceItems(widget.invoiceId);
+    final returned = await DatabaseHelper.instance.hasInvoiceReturn(widget.invoiceId);
     if (!mounted) return;
-    setState(() { _invoice = invoice; _items = items; _loading = false; });
+    setState(() { _invoice = invoice; _items = items; _returned = returned; _loading = false; });
+  }
+  Future<void> _returnInvoice() async {
+    final invoice = _invoice;
+    if (invoice == null || _returned || _working) return;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('ثبت برگشت کامل فاکتور'),
+        content: Text(
+          'برای فاکتور ${invoice['invoice_number']} برگشت کامل ثبت می‌شود. '
+          'فاکتور اصلی حذف یا تغییر نمی‌کند و موجودی اقلام به انبار برمی‌گردد. '
+          'این عملیات فقط یک‌بار برای هر فاکتور انجام می‌شود. ادامه می‌دهید؟',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('انصراف')),
+          FilledButton(onPressed: () => Navigator.pop(context, true), child: const Text('ثبت برگشت')),
+        ],
+      ),
+    );
+    if (confirm != true || !mounted) return;
+    setState(() => _working = true);
+    try {
+      await DatabaseHelper.instance.returnInvoice(
+        widget.invoiceId,
+        date: PersianDateHelper.today(),
+      );
+      await _load();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('برگشت کامل ثبت شد؛ فاکتور اصلی حفظ شده است.')),
+        );
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('ثبت برگشت ناموفق بود: ${error.toString().replaceFirst('Bad state: ', '')}')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _working = false);
+    }
   }
   Future<Uint8List> _buildPdf() async {
-    final fontData = await rootBundle.load('assets/fonts/Amiri-Regular.ttf');
-    final font = pw.Font.ttf(fontData);
+    final encodedFont = (await rootBundle.loadString('assets/fonts/Amiri-Regular.ttf.base64')).replaceAll(RegExp(r'\s'), '');
+    final fontBytes = Uint8List.fromList(base64Decode(encodedFont));
+    final font = pw.Font.ttf(ByteData.sublistView(fontBytes));
     final pdf = pw.Document();
     final invoice = _invoice!;
     pdf.addPage(pw.MultiPage(
@@ -324,7 +455,7 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
           child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.stretch,
             children: [
-              pw.Text('هیرکان پلاست | فاکتور فروش', style: pw.TextStyle(font: font, fontSize: 20, fontWeight: pw.FontWeight.bold)),
+              pw.Text('HPLeila | فاکتور فروش', style: pw.TextStyle(font: font, fontSize: 20, fontWeight: pw.FontWeight.bold)),
               pw.SizedBox(height: 8),
               pw.Text('شماره فاکتور: ${invoice['invoice_number']}'),
               pw.Text('تاریخ: ${invoice['date']}'),
@@ -415,6 +546,20 @@ class _InvoiceDetailScreenState extends State<InvoiceDetailScreen> {
             FilledButton.icon(onPressed: _working ? null : _sharePdf, icon: const Icon(Icons.share), label: const Text('اشتراک‌گذاری PDF')),
             const SizedBox(height: 8),
             OutlinedButton.icon(onPressed: _working ? null : _printPdf, icon: const Icon(Icons.print), label: const Text('چاپ فاکتور')),
+            const SizedBox(height: 8),
+            if (_returned)
+              const ListTile(
+                leading: Icon(Icons.assignment_returned_outlined),
+                title: Text('برگشت کامل ثبت شده'),
+                subtitle: Text('فاکتور اصلی حفظ شده و موجودی به انبار برگشته است.'),
+              )
+            else
+              OutlinedButton.icon(
+                onPressed: _working ? null : _returnInvoice,
+                icon: const Icon(Icons.assignment_returned_outlined),
+                label: const Text('ثبت برگشت کامل فاکتور'),
+              ),
+
             if (_working) const Padding(padding: EdgeInsets.all(12), child: Center(child: CircularProgressIndicator())),
           ],
         ),
