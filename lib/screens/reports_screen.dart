@@ -125,9 +125,27 @@ class _ReportsScreenState extends State<ReportsScreen> {
       title: const Text('آمار و گزارش‌ها'),
       actions: [IconButton(tooltip: 'به‌روزرسانی گزارش', onPressed: _load, icon: const Icon(Icons.refresh))],
     ),
-    body: _loading ? const Center(child: CircularProgressIndicator()) : _error != null
-      ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [Text(_error!), const SizedBox(height: 12), FilledButton(onPressed: _load, child: const Text('تلاش دوباره'))]))
-      : ListView(
+    body: _buildBody(),
+  );
+
+  Widget _buildBody() {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(_error!),
+              const SizedBox(height: 12),
+              FilledButton(onPressed: _load, child: const Text('تلاش دوباره')),
+            ],
+          ),
+        ),
+      );
+    }
+    return ListView(
         padding: const EdgeInsets.all(16),
         children: [
           Row(children: [
@@ -160,8 +178,8 @@ class _ReportsScreenState extends State<ReportsScreen> {
           ]))),
           const Padding(padding: EdgeInsets.only(top: 8), child: Text('این گزارش بر اساس تراکنش‌های ثبت‌شده محاسبه می‌شود. مجموع خرید از تراکنش‌های «ورود» و مجموع فروش از تراکنش‌های «فروش» به دست می‌آید. این ارقام به‌تنهایی گزارش سود حسابداری یا بهای تمام‌شده دقیق نیستند.')),
         ],
-      ),
-  );
+      );
+  }
 }
 
 class _MetricCard extends StatelessWidget {
