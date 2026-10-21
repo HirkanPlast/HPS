@@ -7,6 +7,7 @@ import '../utils/constants.dart';
 import '../utils/theme_controller.dart';
 import '../database/database_helper.dart';
 import '../models/product.dart';
+import 'backup_restore_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   final String role;
@@ -239,8 +240,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   child: SwitchListTile(
                     secondary: Icon(AppThemeController.mode.value == ThemeMode.dark ? Icons.dark_mode : Icons.light_mode),
                     title: const Text('حالت روز / شب'),
-                    subtitle: const Text('ظاهر روشن یا تیرهٔ برنامه را انتخاب کنید'),
-                    value: AppThemeController.mode.value == ThemeMode.dark,
+                                        value: AppThemeController.mode.value == ThemeMode.dark,
                     onChanged: (enabled) async {
                       await AppThemeController.setMode(enabled ? ThemeMode.dark : ThemeMode.light);
                       if (mounted) setState(() {});
@@ -248,13 +248,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                Text('ورود اطلاعات', style: Theme.of(context).textTheme.titleMedium),
+                Text('اطلاعات و نسخه‌های پشتیبان', style: Theme.of(context).textTheme.titleMedium),
                 const SizedBox(height: 8),
                 ListTile(
-                  leading: const Icon(Icons.file_upload_outlined),
-                  title: const Text('جایگزینی کامل اطلاعات از فایل CSV/TXT'),
-                  subtitle: const Text('پاک‌کردن اطلاعات فعلی و واردکردن کالاها و تراکنش‌های فایل'),
-                  onTap: _importLedgerCsv,
+                  leading: const Icon(Icons.backup_outlined),
+                  title: const Text('پشتیبان‌گیری / بازیابی اطلاعات'),
+                  subtitle: const Text('پشتیبان JSON، بازیابی JSON یا ورود دفتر حسابداری CSV/TXT'),
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => BackupRestoreScreen(onImportLedger: _importLedgerCsv),
+                    ),
+                  ),
                 ),
                 if (isManager) ...[
                   const SizedBox(height: 16),
