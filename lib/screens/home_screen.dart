@@ -127,7 +127,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             ListTile(
               leading: const Icon(Icons.help_outline),
-              title: const Text('راهنما'),
+              title: const Text('راهنما و اطلاعات حقوقی'),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.of(context).push(MaterialPageRoute(builder: (_) => const HelpScreen()));
