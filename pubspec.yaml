@@ -1,7 +1,7 @@
 name: hps
 description: فروشگاه هیرکان پلاست - سیستم مدیریت انبار و فروش
 publish_to: 'none'
-version: 1.6.2+11
+version: 1.6.3+12
 
 environment:
   sdk: '>=3.2.0 <4.0.0'
@@ -53,3 +53,4 @@ flutter:
   assets:
     - assets/
     - assets/fonts/Amiri-Regular.ttf
+    - assets/leila-logo.svg
