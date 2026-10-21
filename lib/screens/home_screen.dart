@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import '../utils/home_navigation.dart';
 import 'invoice_screen.dart';
 import 'help_screen.dart';
@@ -69,18 +70,36 @@ class _HomeScreenState extends State<HomeScreen> {
         child: SafeArea(child: ListView(
           padding: EdgeInsets.zero,
           children: [
-            const DrawerHeader(
-              decoration: BoxDecoration(color: Color(0xFF1565C0)),
-              child: Align(alignment: Alignment.bottomRight, child: Column(
-                mainAxisAlignment: MainAxisAlignment.end,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Icon(Icons.storefront, size: 38, color: Colors.white),
-                  SizedBox(height: 8),
-                  Text('HPLeila', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
-                  Text('مدیریت فروشگاه هیرکان پلاست', style: TextStyle(color: Colors.white)),
-                ],
-              )),
+            DrawerHeader(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF087F73), Color(0xFF003D38)],
+                  begin: Alignment.topRight,
+                  end: Alignment.bottomLeft,
+                ),
+              ),
+              child: Align(
+                alignment: Alignment.bottomRight,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: SvgPicture.asset('assets/leila-logo.svg', width: 88, height: 88),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.only(bottom: 8),
+                        child: Text(
+                          'مدیریت فروشگاه هیرکان پلاست',
+                          style: TextStyle(color: Colors.white, fontSize: 14),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
             _drawerItem(context, 0, Icons.dashboard_outlined, 'در یک نگاه'),
             _drawerItem(context, 1, Icons.swap_horiz, 'تراکنش‌ها'),
