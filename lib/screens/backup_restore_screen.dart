@@ -34,7 +34,7 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
       context: context,
       builder: (c) => AlertDialog(
         title: const Text('بازیابی از فایل پشتیبان'),
-        content: const Text('اطلاعات فعلی با محتوای فایل جایگزین می‌شود. پیش از ادامه مطمئن شوید نسخهٔ پشتیبان فعلی را دارید. ادامه می‌دهید؟'),
+        content: const Text('بازیابی موفق، اطلاعات فعلی را با محتوای فایل جایگزین می‌کند. فایل ابتدا بررسی می‌شود و اگر معتبر نباشد، اطلاعات فعلی دست‌نخورده می‌ماند. پیش از ادامه از اطلاعات فعلی نیز نسخه پشتیبان داشته باشید. ادامه می‌دهید؟'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('انصراف')),
           FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('ادامه')),
@@ -43,15 +43,33 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
     );
     if (confirm != true) return;
     try {
-      final result = await FilePicker.platform.pickFiles(type: FileType.custom, allowedExtensions: ['json'], withData: true);
+      // Use the platform's general picker: Android document providers can reject
+      // custom extension filters even when the selected file is valid JSON.
+      final result = await FilePicker.platform.pickFiles(type: FileType.any, withData: true);
       if (result == null || result.files.isEmpty) return;
-      final bytes = result.files.first.bytes;
+      final file = result.files.first;
+      final bytes = file.bytes;
       if (bytes == null) throw Exception('فایل قابل خواندن نیست');
+      var jsonText = utf8.decode(bytes);
+      if (jsonText.startsWith('\uFEFF')) jsonText = jsonText.substring(1);
+
+      // Validate before calling restore (which replaces current records).
+      final decoded = jsonDecode(jsonText);
+      if (decoded is! Map<String, dynamic>) {
+        throw const FormatException('ساختار فایل پشتیبان معتبر نیست');
+      }
+      const backupKeys = ['products', 'transactions', 'expenses', 'invoices'];
+      final hasBackupData = backupKeys.any((key) => decoded[key] is List);
+      if (!hasBackupData ||
+          backupKeys.any((key) => decoded.containsKey(key) && decoded[key] is! List)) {
+        throw const FormatException('این فایل، نسخه پشتیبان معتبر HPLeila نیست');
+      }
+
       setState(() => _busy = true);
-      final ok = await BackupService.restoreFromJsonString(utf8.decode(bytes), clearFirst: true);
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? 'بازیابی با موفقیت انجام شد' : 'بازیابی انجام نشد؛ فرمت فایل را بررسی کنید')));
+      final ok = await BackupService.restoreFromJsonString(jsonText, clearFirst: true);
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(ok ? 'بازیابی با موفقیت انجام شد' : 'بازیابی انجام نشد؛ اطلاعات فعلی حفظ شده است. فرمت فایل را بررسی کنید')));
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطا در بازیابی: $e')));
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('خطا در بازیابی؛ اطلاعات فعلی تغییر نکرد: $e')));
     } finally { if (mounted) setState(() => _busy = false); }
   }
 
