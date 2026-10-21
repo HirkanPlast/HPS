@@ -34,7 +34,7 @@ class HpsApp extends StatelessWidget {
     return ThemeData(
       useMaterial3: true,
       brightness: brightness,
-      colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF1565C0), brightness: brightness),
+      colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF087F73), brightness: brightness),
       fontFamily: 'Vazirmatn',
       appBarTheme: const AppBarTheme(centerTitle: true, elevation: 0),
       inputDecorationTheme: InputDecorationTheme(
