@@ -191,28 +191,62 @@ class _ProductsScreenState extends State<ProductsScreen> {
                     margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                     child: ListTile(
                       title: Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-                      subtitle: Text('${p.code} • ${p.category} • ${p.unit}'),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.edit, size: 20),
-                        onPressed: () => _showEditDialog(p),
+                      subtitle: Text(
+                        '${p.code} • ${p.category} • ${p.unit}${p.isActive ? '' : ' • غیرفعال'}',
                       ),
-                      onLongPress: () async {
-                        final confirm = await showDialog<bool>(
-                          context: context,
-                          builder: (c) => AlertDialog(
-                            title: const Text('حذف کالا'),
-                            content: Text('کالای «${p.name}» حذف شود؟'),
-                            actions: [
-                              TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('خیر')),
-                              TextButton(onPressed: () => Navigator.pop(c, true), child: const Text('بله')),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            tooltip: 'ویرایش کالا',
+                            icon: const Icon(Icons.edit, size: 20),
+                            onPressed: () => _showEditDialog(p),
+                          ),
+                          PopupMenuButton<String>(
+                            tooltip: 'عملیات کالا',
+                            onSelected: (action) async {
+                              if (action == 'activate') {
+                                await DatabaseHelper.instance.updateProduct(p.copyWith(isActive: true));
+                                await _load();
+                                return;
+                              }
+                              final confirm = await showDialog<bool>(
+                                context: context,
+                                builder: (dialogContext) => AlertDialog(
+                                  title: Text(p.isActive ? 'حذف یا غیرفعال‌کردن کالا' : 'حذف کالای غیرفعال'),
+                                  content: Text(
+                                    p.isActive
+                                        ? 'اگر «${p.name}» سابقه خرید، فروش یا فاکتور داشته باشد، برای حفظ گزارش‌ها فقط غیرفعال می‌شود. اگر سابقه‌ای نداشته باشد، حذف خواهد شد. ادامه می‌دهید؟'
+                                        : 'کالای «${p.name}» حذف شود؟ سوابق آن بررسی می‌شود.',
+                                  ),
+                                  actions: [
+                                    TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('انصراف')),
+                                    TextButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('ادامه')),
+                                  ],
+                                ),
+                              );
+                              if (confirm == true && p.id != null) {
+                                final archived = await DatabaseHelper.instance.deleteOrArchiveProduct(p.id!);
+                                if (!mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text(archived
+                                      ? 'کالا غیرفعال شد؛ سوابق قبلی حفظ شدند'
+                                      : 'کالا حذف شد')),
+                                );
+                                await _load();
+                              }
+                            },
+                            itemBuilder: (_) => [
+                              if (!p.isActive)
+                                const PopupMenuItem(value: 'activate', child: Text('فعال‌کردن کالا')),
+                              PopupMenuItem(
+                                value: 'delete',
+                                child: Text(p.isActive ? 'حذف / غیرفعال‌کردن' : 'حذف کالا'),
+                              ),
                             ],
                           ),
-                        );
-                        if (confirm == true && p.id != null) {
-                          await DatabaseHelper.instance.deleteProduct(p.id!);
-                          _load();
-                        }
-                      },
+                        ],
+                      ),
                     ),
                   );
                 },
