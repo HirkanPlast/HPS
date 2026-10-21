@@ -1,16 +1,17 @@
+import java.util.Properties
+
 plugins {
     id "com.android.application"
     id "kotlin-android"
     id "dev.flutter.flutter-gradle-plugin"
 }
 
-import java.util.Properties
 
- def keystoreProperties = new Properties()
- def keystorePropertiesFile = rootProject.file("key.properties")
- if (keystorePropertiesFile.exists()) {
-     keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
- }
+def keystoreProperties = new Properties()
+def keystorePropertiesFile = rootProject.file("key.properties")
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
 
 android {
     namespace = "com.hirkanplast.hps"
