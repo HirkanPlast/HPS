@@ -9,20 +9,18 @@ import 'transactions_screen.dart';
 import 'inventory_screen.dart';
 import 'expenses_screen.dart';
 import 'products_screen.dart';
+import 'reports_screen.dart';
 import 'settings_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final String role; // 'seller' or 'manager'
-
   const HomeScreen({super.key, required this.role});
-
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
   int _currentIndex = 0;
-
   late final List<Widget> _pages;
   late final List<BottomNavigationBarItem> _items;
 
@@ -30,7 +28,6 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     final isManager = widget.role == 'manager';
-
     _pages = [
       const DashboardScreen(),
       const TransactionsScreen(),
@@ -39,7 +36,6 @@ class _HomeScreenState extends State<HomeScreen> {
       if (isManager) const ProductsScreen(),
       SettingsScreen(role: widget.role),
     ];
-
     _items = [
       const BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: 'در یک نگاه'),
       const BottomNavigationBarItem(icon: Icon(Icons.swap_horiz), label: 'تراکنش'),
@@ -91,10 +87,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     const Expanded(
                       child: Padding(
                         padding: EdgeInsets.only(bottom: 8),
-                        child: Text(
-                          'مدیریت فروشگاه هیرکان پلاست',
-                          style: TextStyle(color: Colors.white, fontSize: 14),
-                        ),
+                        child: Text('مدیریت فروشگاه هیرکان پلاست', style: TextStyle(color: Colors.white, fontSize: 14)),
                       ),
                     ),
                   ],
@@ -105,7 +98,7 @@ class _HomeScreenState extends State<HomeScreen> {
             _drawerItem(context, 1, Icons.swap_horiz, 'تراکنش‌ها'),
             _drawerItem(context, 2, Icons.inventory_2_outlined, 'موجودی انبار'),
             _drawerItem(context, 3, Icons.money_off_outlined, 'هزینه‌ها'),
-            _drawerItem(context, 4, Icons.category_outlined, 'مدیریت کالاها'),
+            if (widget.role == 'manager') _drawerItem(context, 4, Icons.category_outlined, 'مدیریت کالاها'),
             ListTile(
               leading: const Icon(Icons.receipt_long_outlined),
               title: const Text('فاکتورهای فروش'),
@@ -114,7 +107,16 @@ class _HomeScreenState extends State<HomeScreen> {
                 Navigator.of(context).push(MaterialPageRoute(builder: (_) => const InvoicesScreen()));
               },
             ),
-            _drawerItem(context, 5, Icons.settings_outlined, 'تنظیمات'),
+            ListTile(
+              leading: const Icon(Icons.analytics_outlined),
+              title: const Text('آمار و گزارش‌ها'),
+              subtitle: const Text('گزارش ماهانه، سالانه و مقایسه فروش'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const ReportsScreen()));
+              },
+            ),
+            _drawerItem(context, widget.role == 'manager' ? 5 : 4, Icons.settings_outlined, 'تنظیمات'),
             ListTile(
               leading: const Icon(Icons.backup_outlined),
               title: const Text('پشتیبان‌گیری و بازیابی'),
@@ -139,10 +141,7 @@ class _HomeScreenState extends State<HomeScreen> {
         icon: const Icon(Icons.receipt_long),
         label: const Text('فاکتور فروش'),
       ) : null,
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _pages,
-      ),
+      body: IndexedStack(index: _currentIndex, children: _pages),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (i) => setState(() => _currentIndex = i),
