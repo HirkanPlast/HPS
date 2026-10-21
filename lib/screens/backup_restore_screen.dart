@@ -7,7 +7,9 @@ import '../database/database_helper.dart';
 import '../services/backup_service.dart';
 
 class BackupRestoreScreen extends StatefulWidget {
-  const BackupRestoreScreen({super.key});
+  final Future<void> Function()? onImportLedger;
+
+  const BackupRestoreScreen({super.key, this.onImportLedger});
   @override
   State<BackupRestoreScreen> createState() => _BackupRestoreScreenState();
 }
@@ -88,6 +90,14 @@ class _BackupRestoreScreenState extends State<BackupRestoreScreen> {
         FilledButton.icon(onPressed: _shareBackup, icon: const Icon(Icons.backup_outlined), label: const Text('ساخت و اشتراک‌گذاری نسخه پشتیبان')),
         const SizedBox(height: 12),
         OutlinedButton.icon(onPressed: _restore, icon: const Icon(Icons.restore), label: const Text('بازیابی از فایل JSON')),
+        if (widget.onImportLedger != null) ...[
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: widget.onImportLedger,
+            icon: const Icon(Icons.file_upload_outlined),
+            label: const Text('ورود دفتر حسابداری CSV/TXT'),
+          ),
+        ],
       ],
     ),
   );
