@@ -118,14 +118,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             _drawerItem(context, widget.role == 'manager' ? 5 : 4, Icons.settings_outlined, 'تنظیمات'),
             ListTile(
-              leading: const Icon(Icons.backup_outlined),
-              title: const Text('پشتیبان‌گیری و بازیابی'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BackupRestoreScreen()));
-              },
-            ),
-            ListTile(
               leading: const Icon(Icons.help_outline),
               title: const Text('راهنما و اطلاعات حقوقی'),
               onTap: () {
