@@ -75,6 +75,7 @@ class _SplashWrapperState extends State<SplashWrapper> {
 
   Future<void> _loadRole() async {
     final prefs = await SharedPreferences.getInstance();
+    await AppThemeController.load();
     await prefs.setString(AppConstants.keyRole, 'manager');
     setState(() { _role = 'manager'; _loading = false; });
   }
