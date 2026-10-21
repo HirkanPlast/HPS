@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256">
+<defs>
+ <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0b8b79"/><stop offset="1" stop-color="#003c36"/></linearGradient>
+ <linearGradient id="gold" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff6c5"/><stop offset=".5" stop-color="#f8d76d"/><stop offset="1" stop-color="#e6a51c"/></linearGradient>
+</defs>
+<rect width="256" height="256" rx="48" fill="url(#bg)"/>
+<circle cx="128" cy="124" r="91" fill="#ffffff" opacity=".035"/>
+<!-- delicate flower beside the L -->
+<g transform="translate(60 76)" fill="url(#gold)" stroke="#fff1ad" stroke-width="1.2">
+ <ellipse cx="0" cy="-15" rx="8.5" ry="13"/>
+ <ellipse cx="14" cy="-4" rx="8.5" ry="13" transform="rotate(55 14 -4)"/>
+ <ellipse cx="9" cy="13" rx="8.5" ry="13" transform="rotate(125 9 13)"/>
+ <ellipse cx="-9" cy="13" rx="8.5" ry="13" transform="rotate(-125 -9 13)"/>
+ <ellipse cx="-14" cy="-4" rx="8.5" ry="13" transform="rotate(-55 -14 -4)"/>
+ <circle cx="0" cy="0" r="6.5" fill="#087f73" stroke="#fff1ad" stroke-width="2"/>
+</g>
+<path d="M57 109 Q43 127 47 145 Q55 136 65 135" fill="none" stroke="#6ed3a2" stroke-width="4" stroke-linecap="round"/>
+<path d="M67 116 Q83 127 84 142 Q72 136 66 132" fill="none" stroke="#6ed3a2" stroke-width="4" stroke-linecap="round"/>
+<!-- elegant L and wordmark -->
+<path d="M108 66 C97 66 93 74 93 86 L93 158 C93 174 104 181 119 181 L204 181" fill="none" stroke="url(#gold)" stroke-width="12" stroke-linecap="round" stroke-linejoin="round"/>
+<text x="144" y="151" text-anchor="middle" font-family="Georgia,serif" font-size="48" font-style="italic" font-weight="bold" fill="url(#gold)">Leila</text>
+<path d="M100 198 Q145 213 194 195" fill="none" stroke="#f5ce5e" stroke-width="2.5" stroke-linecap="round" opacity=".85"/>
+</svg>

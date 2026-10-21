@@ -6,6 +6,7 @@ import 'package:workmanager/workmanager.dart';
 import 'app.dart';
 import 'services/backup_service.dart';
 import 'utils/constants.dart';
+import 'utils/theme_controller.dart';
 
 /// Background callback for daily backup
 @pragma('vm:entry-point')
@@ -41,5 +42,6 @@ void main() async {
     existingWorkPolicy: ExistingWorkPolicy.keep,
   );
 
+  await AppThemeController.load();
   runApp(const HpsApp());
 }

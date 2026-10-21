@@ -3,15 +3,16 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'utils/constants.dart';
-import 'screens/role_select_screen.dart';
+import 'utils/theme_controller.dart';
 import 'screens/home_screen.dart';
 
 class HpsApp extends StatelessWidget {
   const HpsApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
+  Widget build(BuildContext context) => ValueListenableBuilder<ThemeMode>(
+    valueListenable: AppThemeController.mode,
+    builder: (context, mode, _) => MaterialApp(
       title: AppConstants.appName,
       debugShowCheckedModeBanner: false,
       locale: const Locale('fa', 'IR'),
@@ -21,34 +22,36 @@ class HpsApp extends StatelessWidget {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      theme: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.light,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF1565C0),
-          brightness: Brightness.light,
-        ),
-        fontFamily: 'Vazirmatn', // Will fallback if not present
-        appBarTheme: const AppBarTheme(
-          centerTitle: true,
-          elevation: 0,
-        ),
-        inputDecorationTheme: InputDecorationTheme(
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        ),
-        elevatedButtonTheme: ElevatedButtonThemeData(
-          style: ElevatedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          ),
-        ),
-        cardTheme: CardTheme(
-          elevation: 1,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      themeMode: mode,
+      theme: _buildTheme(Brightness.light),
+      darkTheme: _buildTheme(Brightness.dark),
+      home: const SplashWrapper(),
+    ),
+  );
+
+  ThemeData _buildTheme(Brightness brightness) {
+    final dark = brightness == Brightness.dark;
+    return ThemeData(
+      useMaterial3: true,
+      brightness: brightness,
+      colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF087F73), brightness: brightness),
+      fontFamily: 'Vazirmatn',
+      appBarTheme: const AppBarTheme(centerTitle: true, elevation: 0),
+      inputDecorationTheme: InputDecorationTheme(
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
       ),
-      home: const SplashWrapper(),
+      cardTheme: CardTheme(
+        color: dark ? const Color(0xFF1E293B) : null,
+        elevation: 1,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      ),
     );
   }
 }
@@ -72,11 +75,8 @@ class _SplashWrapperState extends State<SplashWrapper> {
 
   Future<void> _loadRole() async {
     final prefs = await SharedPreferences.getInstance();
-    final role = prefs.getString(AppConstants.keyRole);
-    setState(() {
-      _role = role;
-      _loading = false;
-    });
+    await prefs.setString(AppConstants.keyRole, 'manager');
+    setState(() { _role = 'manager'; _loading = false; });
   }
 
   @override
@@ -87,16 +87,6 @@ class _SplashWrapperState extends State<SplashWrapper> {
       );
     }
 
-    if (_role == null) {
-      return RoleSelectScreen(
-        onSelected: (role) async {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString(AppConstants.keyRole, role);
-          setState(() => _role = role);
-        },
-      );
-    }
-
-    return HomeScreen(role: _role!);
+    return HomeScreen(role: 'manager');
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/home_navigation.dart';
 import '../database/database_helper.dart';
 import '../models/expense.dart';
 import '../utils/persian_date.dart';
@@ -129,7 +130,7 @@ class _ExpensesScreenState extends State<ExpensesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('هزینه‌های جانبی')),
+      appBar: AppBar(leading: IconButton(tooltip: 'منوی اصلی', icon: const Icon(Icons.menu), onPressed: openHomeDrawer), title: const Text('هزینه‌های جانبی')),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showAddDialog,
         icon: const Icon(Icons.add),

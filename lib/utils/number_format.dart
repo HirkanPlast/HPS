@@ -13,4 +13,15 @@ class NumberFormatHelper {
   }
 
   static String integer(num value) => grouped(value.round());
+
+  static String quantity(num value) {
+    var raw = value.toStringAsFixed(3);
+    while (raw.contains('.') && raw.endsWith('0')) {
+      raw = raw.substring(0, raw.length - 1);
+    }
+    if (raw.endsWith('.')) raw = raw.substring(0, raw.length - 1);
+    final parts = raw.split('.');
+    final whole = grouped(num.tryParse(parts.first) ?? 0);
+    return parts.length == 1 ? whole : '$whole.${parts[1]}';
+  }
 }

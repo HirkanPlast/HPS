@@ -5,6 +5,7 @@
 
     <application
         android:label="HPLeila"
+        android:icon="@mipmap/ic_launcher"
         android:name="${applicationName}">
         <activity
             android:name=".MainActivity"

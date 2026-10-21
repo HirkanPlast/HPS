@@ -1,4 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import '../utils/home_navigation.dart';
+import 'invoice_screen.dart';
+import 'help_screen.dart';
+import 'backup_restore_screen.dart';
 import 'dashboard_screen.dart';
 import 'transactions_screen.dart';
 import 'inventory_screen.dart';
@@ -45,9 +50,95 @@ class _HomeScreenState extends State<HomeScreen> {
     ];
   }
 
+  void _selectPage(BuildContext context, int index) {
+    Navigator.pop(context);
+    setState(() => _currentIndex = index);
+  }
+
+  ListTile _drawerItem(BuildContext context, int index, IconData icon, String label) => ListTile(
+    leading: Icon(icon),
+    title: Text(label),
+    selected: _currentIndex == index,
+    onTap: () => _selectPage(context, index),
+  );
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      key: homeScaffoldKey,
+      drawer: Drawer(
+        child: SafeArea(child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            DrawerHeader(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF087F73), Color(0xFF003D38)],
+                  begin: Alignment.topRight,
+                  end: Alignment.bottomLeft,
+                ),
+              ),
+              child: Align(
+                alignment: Alignment.bottomRight,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(14),
+                      child: SvgPicture.asset('assets/leila-logo.svg', width: 88, height: 88),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.only(bottom: 8),
+                        child: Text(
+                          'مدیریت فروشگاه هیرکان پلاست',
+                          style: TextStyle(color: Colors.white, fontSize: 14),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            _drawerItem(context, 0, Icons.dashboard_outlined, 'در یک نگاه'),
+            _drawerItem(context, 1, Icons.swap_horiz, 'تراکنش‌ها'),
+            _drawerItem(context, 2, Icons.inventory_2_outlined, 'موجودی انبار'),
+            _drawerItem(context, 3, Icons.money_off_outlined, 'هزینه‌ها'),
+            _drawerItem(context, 4, Icons.category_outlined, 'مدیریت کالاها'),
+            ListTile(
+              leading: const Icon(Icons.receipt_long_outlined),
+              title: const Text('فاکتورهای فروش'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const InvoicesScreen()));
+              },
+            ),
+            _drawerItem(context, 5, Icons.settings_outlined, 'تنظیمات'),
+            ListTile(
+              leading: const Icon(Icons.backup_outlined),
+              title: const Text('پشتیبان‌گیری و بازیابی'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const BackupRestoreScreen()));
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.help_outline),
+              title: const Text('راهنما'),
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => const HelpScreen()));
+              },
+            ),
+          ],
+        )),
+      ),
+      floatingActionButton: _currentIndex == 0 ? FloatingActionButton.extended(
+        onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const InvoicesScreen())),
+        icon: const Icon(Icons.receipt_long),
+        label: const Text('فاکتور فروش'),
+      ) : null,
       body: IndexedStack(
         index: _currentIndex,
         children: _pages,
